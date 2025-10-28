@@ -23,6 +23,6 @@ export default defineManifest({
     default_title: 'Open SF.gov CMS Info',
   },
   side_panel: {
-    default_path: 'src/sidepanel/sidepanel.html',
+    default_path: 'src/sidepanel/index.html',
   },
 })
