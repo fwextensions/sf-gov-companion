@@ -1,79 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SF.gov CMS Info</title>
-  <link rel="stylesheet" href="sidepanel.css">
 </head>
+
 <body>
-  <div id="app">
-    <!-- Loading State -->
-    <div id="loading" class="loading-container" style="display: none;">
-      <div class="spinner"></div>
-      <p>Loading page information...</p>
-    </div>
-
-    <!-- Error State -->
-    <div id="error" class="error-container" style="display: none;">
-      <div class="error-icon">⚠️</div>
-      <h3 class="error-title">Error</h3>
-      <p id="error-message" class="error-message"></p>
-      <button id="retry-button" class="retry-button" style="display: none;">Retry</button>
-    </div>
-
-    <!-- Content State -->
-    <div id="content" class="content-container" style="display: none;">
-      <!-- Page Header -->
-      <section class="page-header">
-        <h1 id="page-title" class="page-title"></h1>
-        <span id="content-type" class="content-type-badge"></span>
-      </section>
-
-      <!-- Edit Links -->
-      <section class="edit-links-section">
-        <h2 class="section-title">Edit Page</h2>
-        <div id="edit-link-container" class="edit-link-container"></div>
-      </section>
-
-      <!-- Metadata -->
-      <section class="metadata-section">
-        <h2 class="section-title">Metadata</h2>
-        <div class="metadata-grid">
-          <div class="metadata-item">
-            <span class="metadata-label">Partner Agency:</span>
-            <span id="partner-agency" class="metadata-value"></span>
-          </div>
-          <div class="metadata-item">
-            <span class="metadata-label">Content Type:</span>
-            <span id="content-type-detail" class="metadata-value"></span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Translation Links -->
-      <section class="translations-section">
-        <h2 class="section-title">Translations</h2>
-        <div id="translations-container" class="translations-container"></div>
-      </section>
-
-      <!-- Media Assets -->
-      <section class="media-section">
-        <h2 class="section-title">Media Assets</h2>
-        
-        <div class="media-subsection">
-          <h3 class="subsection-title">Images</h3>
-          <div id="images-container" class="media-list"></div>
-        </div>
-
-        <div class="media-subsection">
-          <h3 class="subsection-title">Files</h3>
-          <div id="files-container" class="media-list"></div>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <script type="module" src="./sidepanel.ts"></script>
+  <div id="root"></div>
+  <script type="module" src="./main.tsx"></script>
 </body>
+
 </html>

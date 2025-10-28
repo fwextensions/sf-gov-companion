@@ -96,10 +96,11 @@ function isCacheValid(entry: CacheEntry): boolean {
 
 /**
  * Clears all cached data
+ * Note: Currently unused, will be removed in task 8
  */
-function clearCache(): void {
-  pageCache.clear();
-}
+// function clearCache(): void {
+//   pageCache.clear();
+// }
 
 /**
  * Handler for chrome.tabs.onUpdated events
