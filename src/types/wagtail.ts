@@ -25,6 +25,15 @@ export interface Translation {
 }
 
 /**
+ * Represents an agency associated with a page
+ */
+export interface Agency {
+  id: number;
+  title: string;
+  url: string;
+}
+
+/**
  * Represents a Wagtail page with all relevant metadata
  */
 export interface WagtailPage {
@@ -32,7 +41,7 @@ export interface WagtailPage {
   title: string;
   slug: string;
   contentType: string;
-  partnerAgency?: string;
+  primaryAgency?: Agency;
   translations: Translation[];
   images: MediaAsset[];
   files: MediaAsset[];

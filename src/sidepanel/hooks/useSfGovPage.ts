@@ -108,14 +108,22 @@ export function useSfGovPage(): UseSfGovPageReturn {
   /**
    * Fetches page data from the Wagtail API with caching
    * @param slug - The page slug to fetch data for
+   * @param url - The current URL to help determine the correct locale
    */
-  const fetchPageData = useCallback(async (slug: string): Promise<void> => {
+  const fetchPageData = useCallback(async (slug: string, url?: string): Promise<void> => {
     // Check cache first
     const cachedEntry = pageCacheRef.current.get(slug);
     if (cachedEntry && isCacheValid(cachedEntry)) {
-      console.log('Using cached data for slug:', slug);
-      setPageData(cachedEntry.data);
-      setError(cachedEntry.error || null);
+      console.log('Using cached data for slug:', slug, { hasData: !!cachedEntry.data, hasError: !!cachedEntry.error });
+      
+      // Only update state if we have data or a cached error
+      if (cachedEntry.data) {
+        setPageData(cachedEntry.data);
+        setError(null);
+      } else if (cachedEntry.error) {
+        setPageData(null);
+        setError(cachedEntry.error);
+      }
       setIsLoading(false);
       return;
     }
@@ -126,8 +134,8 @@ export function useSfGovPage(): UseSfGovPageReturn {
     
     // Fetch from API
     try {
-      console.log('Fetching page data for slug:', slug);
-      const data = await findPageBySlug(slug);
+      console.log('Fetching page data for slug:', slug, 'url:', url);
+      const data = await findPageBySlug(slug, url);
       
       // Cache the result
       pageCacheRef.current.set(slug, {
@@ -174,8 +182,9 @@ export function useSfGovPage(): UseSfGovPageReturn {
   /**
    * Debounced function to fetch page data
    * @param slug - The page slug to fetch data for
+   * @param url - The current URL to help determine the correct locale
    */
-  const debouncedFetchPageData = useCallback((slug: string) => {
+  const debouncedFetchPageData = useCallback((slug: string, url: string) => {
     // Clear existing timer if present
     if (debounceTimerRef.current !== null) {
       clearTimeout(debounceTimerRef.current);
@@ -184,7 +193,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
     // Set new timer
     debounceTimerRef.current = window.setTimeout(() => {
       debounceTimerRef.current = null;
-      fetchPageData(slug);
+      fetchPageData(slug, url);
     }, DEBOUNCE_DELAY);
   }, [fetchPageData]);
 
@@ -196,14 +205,15 @@ export function useSfGovPage(): UseSfGovPageReturn {
     const onSfGov = isOnSfGov(url);
     const slug = onSfGov ? extractPageSlug(url) : '';
     
-    // Check if state changed
+    console.log('handleTabUpdate called:', { url, onSfGov, slug });
+    
+    // Check if state changed meaningfully
     const stateChanged = !currentTabStateRef.current || 
-                         currentTabStateRef.current.url !== url || 
                          currentTabStateRef.current.slug !== slug ||
                          currentTabStateRef.current.isOnSfGov !== onSfGov;
     
     if (!stateChanged) {
-      console.log('Tab state unchanged, skipping update');
+      console.log('Tab state unchanged (slug and domain match), skipping update');
       return;
     }
     
@@ -216,9 +226,16 @@ export function useSfGovPage(): UseSfGovPageReturn {
     if (onSfGov && slug) {
       // On SF.gov with valid slug - fetch data with debouncing
       console.log('On SF.gov page with slug:', slug);
-      debouncedFetchPageData(slug);
+      debouncedFetchPageData(slug, url);
+    } else if (!onSfGov) {
+      // Only clear state if we've actually left SF.gov
+      console.log('Left SF.gov domain, clearing state');
+      setIsLoading(false);
+      setPageData(null);
+      setError(null);
     } else {
-      // Not on SF.gov or no valid slug
+      // On SF.gov but no valid slug (e.g., homepage)
+      console.log('On SF.gov but no valid slug');
       setIsLoading(false);
       setPageData(null);
       setError(null);
@@ -238,7 +255,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
     pageCacheRef.current.delete(currentTabStateRef.current.slug);
     
     // Fetch fresh data directly
-    fetchPageData(currentTabStateRef.current.slug);
+    fetchPageData(currentTabStateRef.current.slug, currentTabStateRef.current.url);
   }, [fetchPageData]);
 
   /**

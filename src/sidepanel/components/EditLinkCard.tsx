@@ -6,7 +6,7 @@ interface EditLinkCardProps {
 }
 
 export const EditLinkCard: React.FC<EditLinkCardProps> = ({ pageId }) => {
-  const editUrl = `https://cms.sf.gov/admin/pages/${pageId}/edit/`
+  const editUrl = `https://api.sf.gov/admin/pages/${pageId}/edit/`
 
   return (
     <Card title="Edit Page">

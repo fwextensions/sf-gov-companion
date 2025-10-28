@@ -32,11 +32,11 @@ async function fetchWithTimeout(url: string, timeout: number = DEFAULT_TIMEOUT):
     return response;
   } catch (error) {
     clearTimeout(timeoutId);
-    
+
     if (error instanceof Error && error.name === 'AbortError') {
       throw createApiError('timeout', 'Request timed out after 10 seconds');
     }
-    
+
     throw error;
   }
 }
@@ -44,10 +44,11 @@ async function fetchWithTimeout(url: string, timeout: number = DEFAULT_TIMEOUT):
 /**
  * Finds a Wagtail page by its slug
  * @param slug - The page slug to search for
+ * @param currentUrl - Optional current URL to determine which locale version to use
  * @returns Promise resolving to WagtailPage or null if not found
  * @throws ApiError for network errors, timeouts, or server errors
  */
-export async function findPageBySlug(slug: string): Promise<WagtailPage | null> {
+export async function findPageBySlug(slug: string, currentUrl?: string): Promise<WagtailPage | null> {
   try {
     const url = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
     const response = await fetchWithTimeout(url);
@@ -72,8 +73,33 @@ export async function findPageBySlug(slug: string): Promise<WagtailPage | null> 
       return null;
     }
 
-    // Parse and return the first matching page
-    return parsePageData(data.items[0]);
+    // If multiple items returned (translations), determine which one matches the current URL
+    let currentPageData = data.items[0];
+
+    if (data.items.length > 1 && currentUrl) {
+      // Try to match based on the URL path
+      const matchedPage = data.items.find((item: any) => {
+        const htmlUrl = item.meta?.html_url;
+        if (htmlUrl) {
+          try {
+            const apiUrlObj = new URL(htmlUrl);
+            const currentUrlObj = new URL(currentUrl);
+            // Compare the pathname (which includes locale prefix like /fil/)
+            return apiUrlObj.pathname === currentUrlObj.pathname;
+          } catch (e) {
+            return false;
+          }
+        }
+        return false;
+      });
+
+      if (matchedPage) {
+        currentPageData = matchedPage;
+      }
+    }
+
+    // Parse the current page with all translations
+    return parsePageDataWithTranslations(currentPageData, data.items);
   } catch (error) {
     // Re-throw ApiErrors as-is
     if (isApiError(error)) {
@@ -91,21 +117,32 @@ export async function findPageBySlug(slug: string): Promise<WagtailPage | null> 
 }
 
 /**
- * Parses API response data into a WagtailPage object
- * @param pageData - Raw page data from the API
+ * Parses API response data into a WagtailPage object with translations from all items
+ * @param pageData - Raw page data from the API for the current page
+ * @param allItems - All items returned from the API (including translations)
  * @returns Parsed WagtailPage object
  */
-function parsePageData(pageData: any): WagtailPage {
+function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailPage {
   const pageId = pageData.id;
   const editUrl = `https://api.sf.gov/admin/pages/${pageId}/edit/`;
+
+  // Extract primary agency information
+  let primaryAgency = undefined;
+  if (pageData.primary_agency && typeof pageData.primary_agency === 'object') {
+    primaryAgency = {
+      id: pageData.primary_agency.id,
+      title: pageData.primary_agency.title || '',
+      url: pageData.primary_agency.meta?.html_url || ''
+    };
+  }
 
   return {
     id: pageId,
     title: pageData.title || '',
     slug: pageData.meta?.slug || pageData.slug || '',
     contentType: pageData.meta?.type || '',
-    partnerAgency: pageData.partner_agency?.title || pageData.partner_agency || undefined,
-    translations: extractTranslations(pageData),
+    primaryAgency,
+    translations: extractTranslationsFromItems(allItems),
     images: extractImages(pageData),
     files: extractFiles(pageData),
     editUrl,
@@ -232,42 +269,48 @@ function extractFiles(pageData: any): MediaAsset[] {
 }
 
 /**
- * Extracts translation information from page data
- * @param pageData - Raw page data from the API
+ * Extracts translation information from all items returned by the API
+ * @param allItems - All page items from the API response (same slug, different locales)
  * @returns Array of Translation objects
  */
-function extractTranslations(pageData: any): Translation[] {
+function extractTranslationsFromItems(allItems: any[]): Translation[] {
   const translations: Translation[] = [];
+  const seenPageIds = new Set<number>();
 
-  // Check for translations in the API response
-  if (pageData.translations && Array.isArray(pageData.translations)) {
-    pageData.translations.forEach((trans: any) => {
-      if (trans.id) {
-        translations.push({
-          language: trans.locale?.language_name || trans.language || '',
-          languageCode: trans.locale?.language_code || trans.language_code || '',
-          pageId: trans.id,
-          editUrl: `https://api.sf.gov/admin/pages/${trans.id}/edit/`,
-          title: trans.title || ''
-        });
-      }
-    });
-  }
+  // Map of locale codes to language names
+  const localeNames: Record<string, string> = {
+    'en': 'English',
+    'es': 'Español',
+    'zh': '中文',
+    'fil': 'Filipino',
+    'vi': 'Tiếng Việt',
+    'ru': 'Русский'
+  };
 
-  // Check for locale/language information in meta
-  if (pageData.locale && pageData.locale !== 'en') {
-    // This page itself is a translation
-    const locale = pageData.locale;
-    if (typeof locale === 'object' && locale.language_code) {
+  // Process each item as a translation
+  allItems.forEach((item: any) => {
+    if (item.id && !seenPageIds.has(item.id)) {
+      const locale = item.meta?.locale || 'en';
+      const languageCode = typeof locale === 'string' ? locale : locale.language_code || 'en';
+      const languageName = localeNames[languageCode] || languageCode.toUpperCase();
+
       translations.push({
-        language: locale.language_name || locale.language_code,
-        languageCode: locale.language_code,
-        pageId: pageData.id,
-        editUrl: `https://api.sf.gov/admin/pages/${pageData.id}/edit/`,
-        title: pageData.title || ''
+        language: languageName,
+        languageCode: languageCode,
+        pageId: item.id,
+        editUrl: `https://api.sf.gov/admin/pages/${item.id}/edit/`,
+        title: item.title || ''
       });
+      seenPageIds.add(item.id);
     }
-  }
+  });
+
+  // Sort translations: English first, then alphabetically by language code
+  translations.sort((a, b) => {
+    if (a.languageCode === 'en') return -1;
+    if (b.languageCode === 'en') return 1;
+    return a.languageCode.localeCompare(b.languageCode);
+  });
 
   return translations;
 }

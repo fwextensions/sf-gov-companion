@@ -6,6 +6,7 @@ import { EditLinkCard } from "./components/EditLinkCard";
 import { MetadataCard } from "./components/MetadataCard";
 import { TranslationsCard } from "./components/TranslationsCard";
 import { MediaAssetsCard } from "./components/MediaAssetsCard";
+import { ApiLinkCard } from "./components/ApiLinkCard";
 
 function App()
 {
@@ -33,8 +34,9 @@ function App()
 				<div className="max-w-3xl mx-auto space-y-4">
 					<PageHeader title={pageData.title} contentType={pageData.contentType} />
 					<EditLinkCard pageId={pageData.id} />
+					<ApiLinkCard pageId={pageData.id} />
 					<MetadataCard
-						partnerAgency={pageData.partnerAgency}
+						primaryAgency={pageData.primaryAgency}
 						contentType={pageData.contentType}
 					/>
 					<TranslationsCard translations={pageData.translations} />
