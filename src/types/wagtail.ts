@@ -55,30 +55,10 @@ export interface ApiError {
 }
 
 /**
- * Message sent from background to side panel with page data
+ * Represents a cached entry for page data
  */
-export interface PageDataMessage {
-  type: 'PAGE_DATA';
+export interface CacheEntry {
   data: WagtailPage | null;
   error?: ApiError;
+  timestamp: number;
 }
-
-/**
- * Message sent from side panel to background to retry fetching data
- */
-export interface RetryMessage {
-  type: 'RETRY_FETCH';
-  slug: string;
-}
-
-/**
- * Message sent from side panel to background to get current page data
- */
-export interface GetCurrentPageMessage {
-  type: 'GET_CURRENT_PAGE';
-}
-
-/**
- * Union type of all message types for type-safe message handling
- */
-export type ExtensionMessage = PageDataMessage | RetryMessage | GetCurrentPageMessage;
