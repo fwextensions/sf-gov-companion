@@ -4,97 +4,428 @@
  */
 
 import type {
-  PageDataMessage,
-  RetryMessage,
-  GetCurrentPageMessage,
   WagtailPage,
   ApiError,
   Translation,
-  MediaAsset
+  MediaAsset,
+  CacheEntry
 } from '../types/wagtail';
+import { findPageBySlug } from '../api/wagtail-client';
 
 /**
- * Current page slug for retry functionality
+ * Interface for tracking the current tab state
  */
-let currentSlug: string = '';
+interface TabState {
+  url: string;
+  slug: string;
+  isOnSfGov: boolean;
+}
+
+/**
+ * Checks if a URL is on the SF.gov domain
+ * @param url - The URL to check
+ * @returns True if the URL contains sf.gov domain
+ */
+function isOnSfGov(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.includes('sf.gov');
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Extracts the page slug from an SF.gov URL
+ * @param url - The URL to extract the slug from
+ * @returns The page slug, or empty string if not found
+ */
+function extractPageSlug(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    let pathname = urlObj.pathname;
+    
+    // Remove trailing slash
+    if (pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+    
+    // Remove leading slash
+    if (pathname.startsWith('/')) {
+      pathname = pathname.slice(1);
+    }
+    
+    // Return the pathname as the slug
+    // For SF.gov, the slug is typically the full path
+    return pathname;
+  } catch (error) {
+    return '';
+  }
+}
+
+/**
+ * Retrieves cached data for a given slug if valid
+ * @param slug - The page slug to retrieve from cache
+ * @returns The cached entry if valid, null otherwise
+ */
+function getCachedData(slug: string): CacheEntry | null {
+  const entry = pageCache.get(slug);
+  if (entry && isCacheValid(entry)) {
+    return entry;
+  }
+  return null;
+}
+
+/**
+ * Stores page data in the cache with a timestamp
+ * @param slug - The page slug to use as cache key
+ * @param entry - The cache entry to store
+ */
+function setCachedData(slug: string, entry: CacheEntry): void {
+  pageCache.set(slug, entry);
+}
+
+/**
+ * Checks if a cache entry is still valid based on TTL
+ * @param entry - The cache entry to validate
+ * @returns True if the entry is still valid, false otherwise
+ */
+function isCacheValid(entry: CacheEntry): boolean {
+  return Date.now() - entry.timestamp < CACHE_TTL;
+}
+
+/**
+ * Clears all cached data
+ */
+function clearCache(): void {
+  pageCache.clear();
+}
+
+/**
+ * Handler for chrome.tabs.onUpdated events
+ */
+const onTabUpdated = (
+  tabId: number,
+  changeInfo: { status?: string; url?: string },
+  tab: chrome.tabs.Tab
+) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    handleTabUpdate(tabId, tab.url);
+  }
+};
+
+/**
+ * Handler for chrome.tabs.onActivated events
+ */
+const onTabActivated = async (activeInfo: { tabId: number; windowId: number }) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    if (tab.url) {
+      handleTabUpdate(activeInfo.tabId, tab.url);
+    }
+  } catch (error) {
+    console.error('Error getting tab info:', error);
+  }
+};
+
+/**
+ * Sets up Chrome tab event listeners
+ */
+function setupTabListeners(): void {
+  chrome.tabs.onUpdated.addListener(onTabUpdated);
+  chrome.tabs.onActivated.addListener(onTabActivated);
+  console.log('Tab listeners registered');
+}
+
+/**
+ * Removes Chrome tab event listeners
+ */
+function removeTabListeners(): void {
+  chrome.tabs.onUpdated.removeListener(onTabUpdated);
+  chrome.tabs.onActivated.removeListener(onTabActivated);
+  console.log('Tab listeners removed');
+}
+
+/**
+ * Handles tab update events by checking URL and fetching data if needed
+ * @param _tabId - The ID of the tab that was updated
+ * @param url - The URL of the tab
+ */
+function handleTabUpdate(_tabId: number, url: string): void {
+  const onSfGov = isOnSfGov(url);
+  const slug = onSfGov ? extractPageSlug(url) : '';
+  
+  // Check if state changed
+  const stateChanged = !currentTabState || 
+                       currentTabState.url !== url || 
+                       currentTabState.slug !== slug ||
+                       currentTabState.isOnSfGov !== onSfGov;
+  
+  if (!stateChanged) {
+    console.log('Tab state unchanged, skipping update');
+    return; // No change, skip processing
+  }
+  
+  // Update current state
+  currentTabState = { url, slug, isOnSfGov: onSfGov };
+  console.log('Tab state updated:', currentTabState);
+  
+  if (onSfGov && slug) {
+    // On SF.gov with valid slug - fetch data with debouncing
+    console.log('On SF.gov page with slug:', slug);
+    debouncedFetchPageData(slug);
+  } else {
+    // Not on SF.gov or no valid slug
+    showNotOnSfGov();
+  }
+}
+
+/**
+ * Shows a message when not on an SF.gov page
+ */
+function showNotOnSfGov(): void {
+  hideLoading();
+  hideError();
+  hideContent();
+  
+  const errorEl = document.getElementById('error');
+  const errorMessageEl = document.getElementById('error-message');
+  const retryButton = document.getElementById('retry-button');
+  
+  if (errorEl && errorMessageEl) {
+    errorMessageEl.textContent = 'Navigate to an SF.gov page to see CMS information';
+    
+    // Hide retry button for this state
+    if (retryButton) {
+      retryButton.style.display = 'none';
+    }
+    
+    errorEl.style.display = 'flex';
+  }
+}
+
+/**
+ * Current tab state tracking
+ */
+let currentTabState: TabState | null = null;
+
+/**
+ * Cache for storing page data with timestamps
+ */
+const pageCache = new Map<string, CacheEntry>();
+
+/**
+ * Cache time-to-live in milliseconds (5 minutes)
+ */
+const CACHE_TTL = 5 * 60 * 1000;
+
+/**
+ * Debounce delay in milliseconds
+ */
+const DEBOUNCE_DELAY = 300;
+
+/**
+ * Timer for debouncing data fetches
+ */
+let debounceTimer: number | null = null;
+
+/**
+ * Debounced function to fetch page data
+ * Uses closure pattern to maintain timer state
+ * @param slug - The page slug to fetch data for
+ */
+const debouncedFetchPageData = (() => {
+  return (slug: string) => {
+    // Clear existing timer if present
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+    }
+    
+    // Set new timer
+    debounceTimer = window.setTimeout(() => {
+      debounceTimer = null;
+      fetchPageData(slug);
+    }, DEBOUNCE_DELAY);
+  };
+})();
+
+/**
+ * Fetches page data from the Wagtail API with caching
+ * @param slug - The page slug to fetch data for
+ */
+async function fetchPageData(slug: string): Promise<void> {
+  // Check cache first
+  const cachedEntry = getCachedData(slug);
+  if (cachedEntry) {
+    console.log('Using cached data for slug:', slug);
+    renderPageData(cachedEntry.data, cachedEntry.error);
+    return;
+  }
+  
+  // Show loading state
+  showLoading();
+  
+  // Fetch from API
+  try {
+    console.log('Fetching page data for slug:', slug);
+    const pageData = await findPageBySlug(slug);
+    
+    // Cache the result
+    setCachedData(slug, {
+      data: pageData,
+      timestamp: Date.now()
+    });
+    
+    // Render the data
+    renderPageData(pageData);
+  } catch (error) {
+    console.error('Error fetching page data:', error);
+    
+    // Type check for ApiError
+    const apiError = error as ApiError;
+    if (apiError && apiError.type && apiError.message && typeof apiError.retryable === 'boolean') {
+      // Cache non-retryable errors
+      if (!apiError.retryable) {
+        setCachedData(slug, {
+          data: null,
+          error: apiError,
+          timestamp: Date.now()
+        });
+      }
+      
+      renderPageData(null, apiError);
+    } else {
+      // Handle unexpected errors
+      const unexpectedError: ApiError = {
+        type: 'network',
+        message: 'An unexpected error occurred',
+        retryable: true
+      };
+      renderPageData(null, unexpectedError);
+    }
+  }
+}
+
+/**
+ * Loads data for the current active tab
+ */
+async function loadCurrentPage(): Promise<void> {
+  try {
+    // Query current active tab
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (tabs.length === 0 || !tabs[0] || !tabs[0].url) {
+      console.warn('No active tab found or tab has no URL');
+      showNotOnSfGov();
+      return;
+    }
+    
+    const tab = tabs[0];
+    const url = tab.url!; // We've already checked it's not undefined
+    
+    console.log('Loading current page:', url);
+    
+    // Check if on SF.gov
+    const onSfGov = isOnSfGov(url);
+    
+    if (onSfGov) {
+      // Extract slug
+      const slug = extractPageSlug(url);
+      
+      if (slug) {
+        // Update current state
+        currentTabState = { url, slug, isOnSfGov: true };
+        
+        // Fetch page data
+        await fetchPageData(slug);
+      } else {
+        console.warn('No valid slug found for SF.gov URL');
+        showNotOnSfGov();
+      }
+    } else {
+      // Not on SF.gov
+      console.log('Not on SF.gov page');
+      showNotOnSfGov();
+    }
+  } catch (error) {
+    console.error('Error loading current page:', error);
+    showNotOnSfGov();
+  }
+}
+
+/**
+ * Cleans up side panel resources when closing
+ */
+function cleanup(): void {
+  console.log('Side panel cleaning up');
+  
+  // Remove tab listeners
+  removeTabListeners();
+  
+  // Clear debounce timer if active
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+    console.log('Debounce timer cleared');
+  }
+}
 
 /**
  * Initialize the side panel
  */
-function initializeSidePanel(): void {
+function initialize(): void {
   console.log('Side panel initialized');
 
-  // Show loading state immediately
-  showLoading();
-
-  // Set up message listener
-  chrome.runtime.onMessage.addListener((message: PageDataMessage) => {
-    console.log('Received message:', message);
-    if (message.type === 'PAGE_DATA') {
-      handlePageData(message);
-    }
-  });
-
-  // Request current page data on load
-  requestCurrentPageData();
+  // Set up tab listeners
+  setupTabListeners();
+  
+  // Load current page data
+  loadCurrentPage();
 
   // Set up retry button listener
   const retryButton = document.getElementById('retry-button');
   if (retryButton) {
     retryButton.addEventListener('click', handleRetryClick);
   }
+  
+  // Set up cleanup on unload
+  window.addEventListener('beforeunload', cleanup);
 }
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeSidePanel);
+  document.addEventListener('DOMContentLoaded', initialize);
 } else {
   // DOM is already loaded
-  initializeSidePanel();
+  initialize();
 }
 
-/**
- * Requests current page data from the background service worker
- */
-function requestCurrentPageData(): void {
-  console.log('Requesting current page data from service worker...');
-  const message: GetCurrentPageMessage = {
-    type: 'GET_CURRENT_PAGE'
-  };
 
-  chrome.runtime.sendMessage(message, (response: PageDataMessage) => {
-    console.log('Received response from service worker:', response);
-    console.log('Response has data:', !!response?.data);
-    console.log('Response has error:', !!response?.error);
-    if (chrome.runtime.lastError) {
-      console.error('Chrome runtime error:', chrome.runtime.lastError);
-    }
-    if (response && response.type === 'PAGE_DATA') {
-      handlePageData(response);
-    } else {
-      console.warn('No valid response received');
-    }
-  });
-}
-
-/**
- * Handles incoming page data messages
- */
-function handlePageData(message: PageDataMessage): void {
-  if (message.error) {
-    showError(message.error);
-  } else if (message.data) {
-    currentSlug = message.data.slug;
-    renderPageData(message.data);
-  } else {
-    showLoading();
-  }
-}
 
 /**
  * Renders page data to the UI
+ * @param pageData - The page data to render (can be null if error occurred)
+ * @param error - Optional error to display instead of page data
  */
-function renderPageData(pageData: WagtailPage): void {
+function renderPageData(pageData: WagtailPage | null, error?: ApiError): void {
+  // Handle error case
+  if (error) {
+    showError(error);
+    return;
+  }
+  
+  // Handle null data case (no error but no data)
+  if (!pageData) {
+    const notFoundError: ApiError = {
+      type: 'not_found',
+      message: 'This page is not found in the CMS',
+      retryable: false
+    };
+    showError(notFoundError);
+    return;
+  }
+  
+  // Render successful data case
   hideLoading();
   hideError();
   showContent();
@@ -389,16 +720,14 @@ function hideContent(): void {
  * Handles retry button clicks
  */
 function handleRetryClick(): void {
-  if (!currentSlug) {
+  if (!currentTabState || !currentTabState.slug) {
     console.error('No slug available for retry');
     return;
   }
 
-  const message: RetryMessage = {
-    type: 'RETRY_FETCH',
-    slug: currentSlug
-  };
-
-  showLoading();
-  chrome.runtime.sendMessage(message);
+  // Clear cache for this slug
+  pageCache.delete(currentTabState.slug);
+  
+  // Fetch fresh data directly
+  fetchPageData(currentTabState.slug);
 }
