@@ -222,6 +222,15 @@ function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailP
     };
   }
 
+  // Extract form confirmation information for sf.Form pages
+  let formConfirmation = undefined;
+  if (pageData.confirmation_title || pageData.confirmation_body) {
+    formConfirmation = {
+      title: pageData.confirmation_title || '',
+      body: pageData.confirmation_body?.value || ''
+    };
+  }
+
   return {
     id: pageId,
     title: pageData.title || '',
@@ -229,6 +238,7 @@ function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailP
     contentType: pageData.meta?.type || '',
     primaryAgency,
     schema,
+    formConfirmation,
     translations: extractTranslationsFromItems(allItems),
     images: extractImages(pageData),
     files: extractFiles(pageData),

@@ -57,7 +57,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 
 				{schema && formEditUrl && (
 					<>
-						<div className="text-sm text-gray-600">Form:</div>
+						<div className="text-sm text-gray-600">Form Name:</div>
 						<div className="text-sm font-medium text-gray-900">
 							<a
 								href={formEditUrl}
@@ -78,7 +78,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 						target="_blank"
 						rel="noopener noreferrer"
 						title="View page data from SF.gov API"
-						className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all font-mono"
+						className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
 					>
 						{pageId}
 					</a>

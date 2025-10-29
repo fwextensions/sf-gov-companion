@@ -43,6 +43,14 @@ export interface FormSchema {
 }
 
 /**
+ * Represents form confirmation data for sf.Form pages
+ */
+export interface FormConfirmation {
+  title: string;
+  body: string;
+}
+
+/**
  * Represents a Wagtail page with all relevant metadata
  */
 export interface WagtailPage {
@@ -52,6 +60,7 @@ export interface WagtailPage {
   contentType: string;
   primaryAgency?: Agency;
   schema?: FormSchema;
+  formConfirmation?: FormConfirmation;
   translations: Translation[];
   images: MediaAsset[];
   files: MediaAsset[];

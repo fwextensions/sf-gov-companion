@@ -6,6 +6,7 @@ import { EditLinkCard } from "./components/EditLinkCard";
 import { MetadataCard } from "./components/MetadataCard";
 import { TranslationsCard } from "./components/TranslationsCard";
 import { MediaAssetsCard } from "./components/MediaAssetsCard";
+import { FormConfirmationCard } from "./components/FormConfirmationCard";
 
 const Container = ({ children }: { children: React.ReactNode }) => (
 	<div className="min-h-screen p-4 bg-gray-50">
@@ -77,6 +78,9 @@ export default function App()
 					pageId={pageData.id}
 					schema={pageData.schema}
 				/>
+				{pageData.formConfirmation && (
+					<FormConfirmationCard formConfirmation={pageData.formConfirmation} />
+				)}
 				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
 			</div>
