@@ -1,22 +1,20 @@
-# SF.gov Wagtail Extension
+# SF.gov Companion Extension
 
 A cross-browser extension that provides content management information for SF.gov pages. The extension displays a side panel when users navigate SF.gov pages, showing metadata and administrative links retrieved from the Wagtail CMS API.
 
 ## Project Structure
 
 ```
-sf-gov-wagtail-extension/
-├── src/
-│   ├── background/      # Background service worker
-│   ├── sidepanel/       # Side panel UI
-│   ├── api/            # Wagtail API client
-│   ├── types/          # TypeScript type definitions
-│   ├── popup/          # Extension popup (optional)
-│   ├── content/        # Content scripts (optional)
-│   ├── components/     # Shared React components
-│   └── assets/         # Static assets
+sf-gov-companion/
+├── dist/               # Build output
 ├── public/             # Public assets (icons, etc.)
-├── dist/              # Build output
+├── src/
+│   ├── api/            # Wagtail API client
+│   ├── assets/         # Static assets
+│   ├── background/     # Background service worker
+│   ├── sidepanel/      # Side panel UI
+│   │   ├── components/ # React components
+│   └── types/          # TypeScript type definitions
 └── manifest.config.ts  # Extension manifest configuration
 ```
 

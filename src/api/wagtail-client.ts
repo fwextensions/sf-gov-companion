@@ -98,8 +98,23 @@ export async function findPageBySlug(slug: string, currentUrl?: string): Promise
       }
     }
 
-    // Parse the current page with all translations
-    return parsePageDataWithTranslations(currentPageData, data.items);
+    // Fetch full page details from the detail URL
+    const detailUrl = currentPageData.meta?.detail_url;
+    if (!detailUrl) {
+      throw createApiError('network', 'Page detail URL not found in API response');
+    }
+
+    console.log('Fetching full page details from:', detailUrl);
+    const detailResponse = await fetchWithTimeout(detailUrl);
+
+    if (!detailResponse.ok) {
+      throw createApiError('network', `Failed to fetch page details: HTTP ${detailResponse.status}`, detailResponse.status);
+    }
+
+    const fullPageData = await detailResponse.json();
+
+    // Parse the full page data with all translations
+    return parsePageDataWithTranslations(fullPageData, data.items);
   } catch (error) {
     // Re-throw ApiErrors as-is
     if (isApiError(error)) {

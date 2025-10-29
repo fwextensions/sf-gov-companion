@@ -10,22 +10,20 @@ export function ApiLinkCard({ pageId }: ApiLinkCardProps)
 
 	return (
 		<Card title="API Information">
-			<div className="space-y-2">
-				<div className="flex items-center gap-2">
-					<span className="text-sm font-medium text-gray-700">Page ID:</span>
-					<span className="text-sm text-gray-900 font-mono">{pageId}</span>
-				</div>
-				<div className="flex items-start gap-2">
-					<span className="text-sm font-medium text-gray-700 shrink-0">API URL:</span>
-					<a
-						href={apiUrl}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all font-mono"
-					>
-						{apiUrl}
-					</a>
-				</div>
+			<div className="flex items-center gap-2">
+				<span className="text-sm font-medium text-gray-700">Page ID:</span>
+				<span className="text-sm text-gray-900 font-mono">{pageId}</span>
+			</div>
+			<div className="flex items-start gap-2">
+				<span className="text-sm font-medium text-gray-700 shrink-0">Page ID:</span>
+				<a
+					href={apiUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all font-mono"
+				>
+					{pageId}
+				</a>
 			</div>
 		</Card>
 	);

@@ -6,45 +6,68 @@ import { EditLinkCard } from "./components/EditLinkCard";
 import { MetadataCard } from "./components/MetadataCard";
 import { TranslationsCard } from "./components/TranslationsCard";
 import { MediaAssetsCard } from "./components/MediaAssetsCard";
-import { ApiLinkCard } from "./components/ApiLinkCard";
 
-function App()
+const Container = ({ children }: { children: React.ReactNode }) => (
+	<div className="min-h-screen p-4 bg-gray-50">
+		{children}
+	</div>
+);
+
+export default function App()
 {
 	const { pageData, error, isLoading, isOnSfGov, retry } = useSfGovPage();
 
-	return (
-		<div className="min-h-screen p-4 bg-gray-50">
-			{/* Loading State */}
-			{isLoading && <LoadingState />}
+	if (isLoading) {
+		return (
+			<Container>
+				<LoadingState />
+			</Container>
+		);
+	}
 
-			{/* Error State */}
-			{!isLoading && error && <ErrorState error={error} onRetry={retry} />}
+	if (error) {
+		return (
+			<Container>
+				<ErrorState error={error} onRetry={retry} />
+			</Container>
+		);
+	}
 
-			{/* Not on SF.gov State */}
-			{!isLoading && !error && !isOnSfGov && (
+	if (!isOnSfGov) {
+		return (
+			<Container>
 				<div className="flex flex-col items-center justify-center min-h-[200px] p-8 text-center">
 					<p className="text-gray-600 text-sm">
 						Navigate to an SF.gov page to view CMS information
 					</p>
 				</div>
-			)}
+			</Container>
+		);
+	}
 
-			{/* Content State - Display page data */}
-			{!isLoading && !error && pageData && (
-				<div className="max-w-3xl mx-auto space-y-4">
-					<PageHeader title={pageData.title} contentType={pageData.contentType} />
-					<EditLinkCard pageId={pageData.id} />
-					<ApiLinkCard pageId={pageData.id} />
-					<MetadataCard
-						primaryAgency={pageData.primaryAgency}
-						contentType={pageData.contentType}
-					/>
-					<TranslationsCard translations={pageData.translations} />
-					<MediaAssetsCard images={pageData.images} files={pageData.files} />
+	if (!pageData) {
+		return (
+			<Container>
+				<div className="flex flex-col items-center justify-center min-h-[200px] p-8 text-center">
+					<p className="text-gray-600 text-sm">Page data is unavailable.</p>
 				</div>
-			)}
-		</div>
+			</Container>
+		);
+	}
+
+	return (
+		<Container>
+			<div className="max-w-3xl mx-auto space-y-4">
+				<PageHeader title={pageData.title} />
+				<EditLinkCard pageId={pageData.id} />
+				<MetadataCard
+					primaryAgency={pageData.primaryAgency}
+					contentType={pageData.contentType}
+					pageId={pageData.id}
+				/>
+				<TranslationsCard translations={pageData.translations} />
+				<MediaAssetsCard images={pageData.images} files={pageData.files} />
+			</div>
+		</Container>
 	);
 }
-
-export default App;
