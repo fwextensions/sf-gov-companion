@@ -1,11 +1,12 @@
 import React from "react";
 import { Card } from "./Card";
-import type { Agency } from "../../types/wagtail";
+import type { Agency, FormSchema } from "../../types/wagtail";
 
 interface MetadataCardProps {
 	primaryAgency: Agency | undefined;
 	contentType: string;
 	pageId: number;
+	schema?: FormSchema;
 }
 
 function formatContentType(contentType: string): string
@@ -23,9 +24,13 @@ function formatContentType(contentType: string): string
 export const MetadataCard: React.FC<MetadataCardProps> = ({
 	primaryAgency,
 	contentType,
-	pageId
+	pageId,
+	schema
 }) => {
 	const apiUrl = `https://api.sf.gov/api/v2/pages/${pageId}/`;
+	const formEditUrl = schema
+		? `https://formio.dev.sf.gov/#/project/${schema.project}/form/${schema._id}/edit`
+		: null;
 
 	return (
 		<Card title="Metadata">
@@ -49,6 +54,23 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 						<span className="text-gray-400 italic">None</span>
 					)}
 				</div>
+
+				{schema && formEditUrl && (
+					<>
+						<div className="text-sm text-gray-600">Form:</div>
+						<div className="text-sm font-medium text-gray-900">
+							<a
+								href={formEditUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-blue-600 hover:text-blue-800 hover:underline"
+							>
+								{schema.title}
+							</a>
+						</div>
+					</>
+				)}
+
 				<div className="text-sm text-gray-600 shrink-0">Page ID:</div>
 				<div className="text-sm font-medium text-gray-900">
 					<a

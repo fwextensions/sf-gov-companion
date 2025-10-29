@@ -75,6 +75,7 @@ export default function App()
 					primaryAgency={pageData.primaryAgency}
 					contentType={pageData.contentType}
 					pageId={pageData.id}
+					schema={pageData.schema}
 				/>
 				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />

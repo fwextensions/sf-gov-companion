@@ -34,6 +34,15 @@ export interface Agency {
 }
 
 /**
+ * Represents a form schema for sf.Form pages
+ */
+export interface FormSchema {
+  _id: string;
+  title: string;
+  project: string;
+}
+
+/**
  * Represents a Wagtail page with all relevant metadata
  */
 export interface WagtailPage {
@@ -42,6 +51,7 @@ export interface WagtailPage {
   slug: string;
   contentType: string;
   primaryAgency?: Agency;
+  schema?: FormSchema;
   translations: Translation[];
   images: MediaAsset[];
   files: MediaAsset[];

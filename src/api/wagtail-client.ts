@@ -212,12 +212,23 @@ function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailP
     };
   }
 
+  // Extract form schema information for sf.Form pages
+  let schema = undefined;
+  if (pageData.schema && typeof pageData.schema === 'object') {
+    schema = {
+      _id: pageData.schema._id || '',
+      title: pageData.schema.title || '',
+      project: pageData.schema.project || ''
+    };
+  }
+
   return {
     id: pageId,
     title: pageData.title || '',
     slug: pageData.meta?.slug || pageData.slug || '',
     contentType: pageData.meta?.type || '',
     primaryAgency,
+    schema,
     translations: extractTranslationsFromItems(allItems),
     images: extractImages(pageData),
     files: extractFiles(pageData),
