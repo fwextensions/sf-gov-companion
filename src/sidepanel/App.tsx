@@ -15,7 +15,7 @@ const Container = ({ children }: { children: React.ReactNode }) => (
 
 export default function App()
 {
-	const { pageData, error, isLoading, isOnSfGov, retry } = useSfGovPage();
+	const { pageData, error, isLoading, isOnSfGov, isAdminPage, retry } = useSfGovPage();
 
 	if (isLoading) {
 		return (
@@ -52,6 +52,17 @@ export default function App()
 					<p className="text-gray-600 text-sm">Page data is unavailable.</p>
 				</div>
 			</Container>
+		);
+	}
+
+	// If on admin page, show only the iframe with the SF.gov page
+	if (isAdminPage && pageData.meta.htmlUrl) {
+		return (
+			<iframe
+				src={pageData.meta.htmlUrl}
+				className="w-full h-screen border-0"
+				title="SF.gov Page Preview"
+			/>
 		);
 	}
 

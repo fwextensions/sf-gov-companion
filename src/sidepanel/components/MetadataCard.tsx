@@ -55,6 +55,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 						href={apiUrl}
 						target="_blank"
 						rel="noopener noreferrer"
+						title="View page data from SF.gov API"
 						className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all font-mono"
 					>
 						{pageId}

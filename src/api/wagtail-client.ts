@@ -42,6 +42,67 @@ async function fetchWithTimeout(url: string, timeout: number = DEFAULT_TIMEOUT):
 }
 
 /**
+ * Finds a Wagtail page by its ID
+ * @param pageId - The page ID to fetch
+ * @returns Promise resolving to WagtailPage or null if not found
+ * @throws ApiError for network errors, timeouts, or server errors
+ */
+export async function findPageById(pageId: number): Promise<WagtailPage | null> {
+	try {
+		const detailUrl = `${BASE_API_URL}pages/${pageId}/?fields=*`;
+		console.log('Fetching page by ID from:', detailUrl);
+		const response = await fetchWithTimeout(detailUrl);
+
+		// Handle HTTP error status codes
+		if (response.status === 404) {
+			throw createApiError('not_found', 'This page is not found in the CMS', 404);
+		}
+
+		if (response.status === 500) {
+			throw createApiError('server_error', 'CMS server error. Please try again later.', 500);
+		}
+
+		if (!response.ok) {
+			throw createApiError('network', `HTTP error ${response.status}`, response.status);
+		}
+
+		const pageData = await response.json();
+
+		// Fetch translations by slug
+		const slug = pageData.meta?.slug || pageData.slug;
+		if (!slug) {
+			// If no slug, return page without translations
+			return parsePageDataWithTranslations(pageData, [pageData]);
+		}
+
+		// Fetch all translations for this slug
+		const translationsUrl = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+		const translationsResponse = await fetchWithTimeout(translationsUrl);
+
+		if (translationsResponse.ok) {
+			const translationsData = await translationsResponse.json();
+			return parsePageDataWithTranslations(pageData, translationsData.items || [pageData]);
+		}
+
+		// If translations fetch fails, return page without translations
+		return parsePageDataWithTranslations(pageData, [pageData]);
+	} catch (error) {
+		// Re-throw ApiErrors as-is
+		if (isApiError(error)) {
+			throw error;
+		}
+
+		// Handle network errors
+		if (error instanceof TypeError) {
+			throw createApiError('network', 'Unable to connect to Wagtail API. Check your network connection.');
+		}
+
+		// Handle unexpected errors
+		throw createApiError('network', 'An unexpected error occurred');
+	}
+}
+
+/**
  * Finds a Wagtail page by its slug
  * @param slug - The page slug to search for
  * @param currentUrl - Optional current URL to determine which locale version to use

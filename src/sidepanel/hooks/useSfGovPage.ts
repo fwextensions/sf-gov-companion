@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WagtailPage, ApiError, CacheEntry } from '../../types/wagtail';
-import { findPageBySlug } from '../../api/wagtail-client';
+import { findPageBySlug, findPageById } from '../../api/wagtail-client';
 
 /**
  * Cache time-to-live in milliseconds (5 minutes)
@@ -24,6 +24,8 @@ interface TabState {
   url: string;
   slug: string;
   isOnSfGov: boolean;
+  isAdminPage: boolean;
+  pageId: number | null;
 }
 
 /**
@@ -34,6 +36,7 @@ export interface UseSfGovPageReturn {
   error: ApiError | null;
   isLoading: boolean;
   isOnSfGov: boolean;
+  isAdminPage: boolean;
   currentUrl: string;
   retry: () => void;
 }
@@ -49,6 +52,35 @@ function isOnSfGov(url: string): boolean {
     return urlObj.hostname.includes('sf.gov');
   } catch (error) {
     return false;
+  }
+}
+
+/**
+ * Checks if a URL is a Wagtail admin edit page
+ * @param url - The URL to check
+ * @returns True if the URL is a Wagtail admin edit page
+ */
+function isWagtailAdminEditPage(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.includes('sf.gov') && urlObj.pathname.includes('/admin/pages/') && urlObj.pathname.includes('/edit/');
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Extracts the page ID from a Wagtail admin edit URL
+ * @param url - The admin edit URL
+ * @returns The page ID, or null if not found
+ */
+function extractPageIdFromAdminUrl(url: string): number | null {
+  try {
+    const urlObj = new URL(url);
+    const match = urlObj.pathname.match(/\/admin\/pages\/(\d+)\/edit\//);
+    return match ? parseInt(match[1], 10) : null;
+  } catch (error) {
+    return null;
   }
 }
 
@@ -99,11 +131,87 @@ export function useSfGovPage(): UseSfGovPageReturn {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [isOnSfGovState, setIsOnSfGovState] = useState<boolean>(false);
+  const [isAdminPageState, setIsAdminPageState] = useState<boolean>(false);
 
   // Refs for persistent data across renders
   const pageCacheRef = useRef<Map<string, CacheEntry>>(new Map());
   const debounceTimerRef = useRef<number | null>(null);
   const currentTabStateRef = useRef<TabState | null>(null);
+
+  /**
+   * Fetches page data from the Wagtail API by page ID with caching
+   * @param pageId - The page ID to fetch data for
+   */
+  const fetchPageDataById = useCallback(async (pageId: number): Promise<void> => {
+    const cacheKey = `id:${pageId}`;
+    
+    // Check cache first
+    const cachedEntry = pageCacheRef.current.get(cacheKey);
+    if (cachedEntry && isCacheValid(cachedEntry)) {
+      console.log('Using cached data for page ID:', pageId, { hasData: !!cachedEntry.data, hasError: !!cachedEntry.error });
+      
+      // Only update state if we have data or a cached error
+      if (cachedEntry.data) {
+        setPageData(cachedEntry.data);
+        setError(null);
+      } else if (cachedEntry.error) {
+        setPageData(null);
+        setError(cachedEntry.error);
+      }
+      setIsLoading(false);
+      return;
+    }
+    
+    // Show loading state
+    setIsLoading(true);
+    setError(null);
+    
+    // Fetch from API
+    try {
+      console.log('Fetching page data for ID:', pageId);
+      const data = await findPageById(pageId);
+      
+      // Cache the result
+      pageCacheRef.current.set(cacheKey, {
+        data,
+        timestamp: Date.now()
+      });
+      
+      // Update state
+      setPageData(data);
+      setError(null);
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error fetching page data by ID:', err);
+      
+      // Type check for ApiError
+      const apiError = err as ApiError;
+      if (apiError && apiError.type && apiError.message && typeof apiError.retryable === 'boolean') {
+        // Cache non-retryable errors
+        if (!apiError.retryable) {
+          pageCacheRef.current.set(cacheKey, {
+            data: null,
+            error: apiError,
+            timestamp: Date.now()
+          });
+        }
+        
+        setError(apiError);
+        setPageData(null);
+      } else {
+        // Handle unexpected errors
+        const unexpectedError: ApiError = {
+          type: 'network',
+          message: 'An unexpected error occurred',
+          retryable: true
+        };
+        setError(unexpectedError);
+        setPageData(null);
+      }
+      
+      setIsLoading(false);
+    }
+  }, []);
 
   /**
    * Fetches page data from the Wagtail API with caching
@@ -203,27 +311,36 @@ export function useSfGovPage(): UseSfGovPageReturn {
    */
   const handleTabUpdate = useCallback((url: string) => {
     const onSfGov = isOnSfGov(url);
-    const slug = onSfGov ? extractPageSlug(url) : '';
+    const isAdminPage = isWagtailAdminEditPage(url);
+    const pageId = isAdminPage ? extractPageIdFromAdminUrl(url) : null;
+    const slug = onSfGov && !isAdminPage ? extractPageSlug(url) : '';
     
-    console.log('handleTabUpdate called:', { url, onSfGov, slug });
+    console.log('handleTabUpdate called:', { url, onSfGov, isAdminPage, pageId, slug });
     
     // Check if state changed meaningfully
     const stateChanged = !currentTabStateRef.current || 
                          currentTabStateRef.current.slug !== slug ||
-                         currentTabStateRef.current.isOnSfGov !== onSfGov;
+                         currentTabStateRef.current.isOnSfGov !== onSfGov ||
+                         currentTabStateRef.current.isAdminPage !== isAdminPage ||
+                         currentTabStateRef.current.pageId !== pageId;
     
     if (!stateChanged) {
-      console.log('Tab state unchanged (slug and domain match), skipping update');
+      console.log('Tab state unchanged, skipping update');
       return;
     }
     
     // Update current state
-    currentTabStateRef.current = { url, slug, isOnSfGov: onSfGov };
+    currentTabStateRef.current = { url, slug, isOnSfGov: onSfGov, isAdminPage, pageId };
     setCurrentUrl(url);
     setIsOnSfGovState(onSfGov);
+    setIsAdminPageState(isAdminPage);
     console.log('Tab state updated:', currentTabStateRef.current);
     
-    if (onSfGov && slug) {
+    if (isAdminPage && pageId) {
+      // On Wagtail admin edit page - fetch data by page ID
+      console.log('On Wagtail admin edit page with ID:', pageId);
+      fetchPageDataById(pageId);
+    } else if (onSfGov && slug) {
       // On SF.gov with valid slug - fetch data with debouncing
       console.log('On SF.gov page with slug:', slug);
       debouncedFetchPageData(slug, url);
@@ -240,23 +357,33 @@ export function useSfGovPage(): UseSfGovPageReturn {
       setPageData(null);
       setError(null);
     }
-  }, [debouncedFetchPageData]);
+  }, [debouncedFetchPageData, fetchPageDataById]);
 
   /**
    * Retry function that clears cache and refetches data
    */
   const retry = useCallback(() => {
-    if (!currentTabStateRef.current || !currentTabStateRef.current.slug) {
-      console.error('No slug available for retry');
+    if (!currentTabStateRef.current) {
+      console.error('No tab state available for retry');
       return;
     }
 
-    // Clear cache for this slug
-    pageCacheRef.current.delete(currentTabStateRef.current.slug);
-    
-    // Fetch fresh data directly
-    fetchPageData(currentTabStateRef.current.slug, currentTabStateRef.current.url);
-  }, [fetchPageData]);
+    const { isAdminPage, pageId, slug, url } = currentTabStateRef.current;
+
+    if (isAdminPage && pageId) {
+      // Clear cache for this page ID
+      pageCacheRef.current.delete(`id:${pageId}`);
+      // Fetch fresh data by ID
+      fetchPageDataById(pageId);
+    } else if (slug) {
+      // Clear cache for this slug
+      pageCacheRef.current.delete(slug);
+      // Fetch fresh data by slug
+      fetchPageData(slug, url);
+    } else {
+      console.error('No slug or page ID available for retry');
+    }
+  }, [fetchPageData, fetchPageDataById]);
 
   /**
    * Load data for the current active tab on mount
@@ -343,6 +470,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
     error,
     isLoading,
     isOnSfGov: isOnSfGovState,
+    isAdminPage: isAdminPageState,
     currentUrl,
     retry
   };
