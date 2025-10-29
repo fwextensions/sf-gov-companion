@@ -225,9 +225,19 @@ function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailP
   // Extract form confirmation information for sf.Form pages
   let formConfirmation = undefined;
   if (pageData.confirmation_title || pageData.confirmation_body) {
+    let bodyHtml = '';
+    
+    // confirmation_body is an array of items, find the one with type "text"
+    if (Array.isArray(pageData.confirmation_body)) {
+      const textBlock = pageData.confirmation_body.find((item: any) => item.type === 'text');
+      if (textBlock && textBlock.value) {
+        bodyHtml = textBlock.value;
+      }
+    }
+    
     formConfirmation = {
       title: pageData.confirmation_title || '',
-      body: pageData.confirmation_body?.value || ''
+      body: bodyHtml
     };
   }
 
