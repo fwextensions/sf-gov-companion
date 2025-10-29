@@ -14,3 +14,19 @@
     font-family: system-ui, -apple-system, sans-serif;
   }
 }
+
+@layer components {
+	.form-confirmation p {
+		@apply
+      mb-4
+      last:mb-0;
+	}
+
+	.form-confirmation h3 {
+		@apply
+      mt-6
+      mb-3
+      text-[1.15em]
+      font-semibold;
+	}
+}

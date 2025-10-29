@@ -13,13 +13,13 @@ export const FormConfirmationCard: React.FC<FormConfirmationCardProps> = ({
 		<Card title="Form Confirmation">
 			<div className="space-y-3">
 				{formConfirmation.title && (
-					<div className="font-semibold text-gray-900">
+					<div className="mt-2 font-semibold text-gray-700 text-[1.25em]">
 						{formConfirmation.title}
 					</div>
 				)}
 				{formConfirmation.body && (
 					<div
-						className="text-sm text-gray-700 prose prose-sm max-w-none"
+						className="text-sm text-gray-700 max-w-none form-confirmation"
 						dangerouslySetInnerHTML={{ __html: formConfirmation.body }}
 					/>
 				)}
