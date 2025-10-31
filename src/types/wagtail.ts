@@ -90,3 +90,11 @@ export interface CacheEntry {
   error?: ApiError;
   timestamp: number;
 }
+
+/**
+ * Represents preview parameters for Wagtail API requests
+ */
+export interface PreviewParams {
+  preview: boolean;
+  ts: string;
+}

@@ -10,6 +10,7 @@ export default defineManifest({
 		"sidePanel",
 		"tabs",
 		"storage",
+		"scripting",
 	],
 	host_permissions: [
 		"*://*.sf.gov/*",
@@ -25,4 +26,11 @@ export default defineManifest({
 	side_panel: {
 		default_path: "src/sidepanel/index.html",
 	},
+	content_scripts: [
+		{
+			matches: ["*://api.sf.gov/admin/*"],
+			js: ["src/content/admin-preview-monitor.ts"],
+			run_at: "document_idle",
+		},
+	],
 });
