@@ -5,7 +5,7 @@ export default defineManifest({
 	manifest_version: 3,
 	name: "SF.gov Companion",
 	version: pkg.version,
-	description: "Browser extension that provides content management information and administrative links for SF.gov pages via the Wagtail CMS API",
+	description: "Browser extension that provides information about SF.gov pages, with links to Karl for editing",
 	permissions: [
 		"sidePanel",
 		"tabs",
@@ -20,7 +20,7 @@ export default defineManifest({
 		type: "module",
 	},
 	action: {
-		default_title: "Open SF.gov CMS Info",
+		default_title: "Open SF.gov Companion",
 	},
 	side_panel: {
 		default_path: "src/sidepanel/index.html",
