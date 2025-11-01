@@ -7,10 +7,10 @@ export default defineManifest({
 	version: pkg.version,
 	description: "Browser extension that provides information about SF.gov pages, with links to Karl for editing",
 	icons: {
-		"16": "favicon-16.png",
-		"32": "favicon-32.png",
-		"48": "favicon-48.png",
-		"128": "favicon-128.png",
+		"16": "src/img/favicon-16.png",
+		"32": "src/img/favicon-32.png",
+		"48": "src/img/favicon-48.png",
+		"128": "src/img/favicon-128.png",
 	},
 	permissions: [
 		"sidePanel",
@@ -29,10 +29,10 @@ export default defineManifest({
 	action: {
 		default_title: "Open SF.gov Companion",
 		default_icon: {
-			"16": "favicon-16.png",
-			"32": "favicon-32.png",
-			"48": "favicon-48.png",
-			"128": "favicon-128.png",
+			"16": "src/img/favicon-16.png",
+			"32": "src/img/favicon-32.png",
+			"48": "src/img/favicon-48.png",
+			"128": "src/img/favicon-128.png",
 		},
 	},
 	side_panel: {
