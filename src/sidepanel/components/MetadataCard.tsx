@@ -63,6 +63,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 								href={formEditUrl}
 								target="_blank"
 								rel="noopener noreferrer"
+								title="View form in form.io"
 								className="text-blue-600 hover:text-blue-800 hover:underline"
 							>
 								{schema.title}
