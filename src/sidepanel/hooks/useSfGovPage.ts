@@ -591,13 +591,21 @@ export function useSfGovPage(): UseSfGovPageReturn {
 		/**
 		 * Handler for chrome.tabs.onUpdated events
 		 */
-		const onTabUpdated = (
-			_tabId: number,
+		const onTabUpdated = async (
+			tabId: number,
 			changeInfo: { status?: string; url?: string },
 			tab: chrome.tabs.Tab
 		) => {
 			if (changeInfo.status === "complete" && tab.url) {
-				handleTabUpdate(tab.url);
+				// Only handle updates for the currently active tab in the current window
+				try {
+					const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+					if (activeTab && activeTab.id === tabId) {
+						handleTabUpdate(tab.url);
+					}
+				} catch (err) {
+					console.error("Error checking active tab:", err);
+				}
 			}
 		};
 
@@ -606,6 +614,12 @@ export function useSfGovPage(): UseSfGovPageReturn {
 		 */
 		const onTabActivated = async (activeInfo: { tabId: number; windowId: number }) => {
 			try {
+				// Only handle activation for tabs in the current window
+				const currentWindow = await chrome.windows.getCurrent();
+				if (currentWindow.id !== activeInfo.windowId) {
+					return;
+				}
+				
 				const tab = await chrome.tabs.get(activeInfo.tabId);
 				if (tab.url) {
 					handleTabUpdate(tab.url);

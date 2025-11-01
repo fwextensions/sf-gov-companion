@@ -1,5 +1,7 @@
 # SF.gov Companion Extension
 
+![Icon](./public/favicon-128.png)
+
 A cross-browser extension that provides content management information for SF.gov pages. The extension displays a side panel when users navigate SF.gov pages, showing metadata and administrative links retrieved from the Wagtail CMS API.
 
 ## Project Structure
@@ -19,11 +21,6 @@ sf-gov-companion/
 ```
 
 ## Development
-
-### Prerequisites
-
-- Node.js (v18 or higher)
-- npm
 
 ### Setup
 
