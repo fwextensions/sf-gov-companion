@@ -390,13 +390,29 @@ export function useSfGovPage(): UseSfGovPageReturn {
 		
 		// Check if URL actually changed (to handle window focus changes)
 		if (currentTabStateRef.current && currentTabStateRef.current.url === url) {
-			console.log("URL unchanged, preserving state");
+			console.log("URL unchanged, preserving state", { 
+				hasLastValidState: !!lastValidStateRef.current,
+				lastValidUrl: lastValidStateRef.current?.url,
+				currentPageData: !!pageData
+			});
 			// Restore last valid page data if available
-			if (lastValidStateRef.current && lastValidStateRef.current.url === url) {
+			if (lastValidStateRef.current && lastValidStateRef.current.url === url && pageData) {
+				// We have both cached data and current data, nothing to do
+				console.log("Data already loaded, skipping update");
+				return;
+			} else if (lastValidStateRef.current && lastValidStateRef.current.url === url) {
+				// We have cached data but no current data, restore it
+				console.log("Restoring cached data");
 				setPageData(lastValidStateRef.current.pageData);
 				setError(null);
+				return;
+			} else if (pageData) {
+				// We have current data but no cached data for this URL, keep current data
+				console.log("Keeping current data");
+				return;
 			}
-			return;
+			// If we reach here, we have no data at all, so continue to fetch
+			console.log("No data available, continuing to fetch");
 		}
 		
 		// Check if state changed meaningfully
@@ -406,8 +422,9 @@ export function useSfGovPage(): UseSfGovPageReturn {
 							currentTabStateRef.current.isAdminPage !== isAdminPage ||
 							currentTabStateRef.current.pageId !== pageId;
 		
-		if (!stateChanged) {
-			console.log("Tab state unchanged, skipping update");
+		if (!stateChanged && pageData) {
+			// State unchanged and we already have data, skip update
+			console.log("Tab state unchanged and data loaded, skipping update");
 			return;
 		}
 		
@@ -435,6 +452,18 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			// On Wagtail admin edit page - fetch data by page ID
 			console.log("On Wagtail admin edit page with ID:", pageId);
 			fetchPageDataById(pageId);
+			
+			// Request current preview state from content script
+			chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+				if (tabs.length > 0 && tabs[0] && tabs[0].id) {
+					console.log("Requesting current preview state from content script");
+					chrome.tabs.sendMessage(tabs[0].id, { type: "REQUEST_PREVIEW_STATE" }).catch(err => {
+						console.log("Could not request preview state (content script may not be ready):", err);
+					});
+				}
+			}).catch(err => {
+				console.error("Error querying tabs for preview state request:", err);
+			});
 		} else if (onSfGov && slug) {
 			// On SF.gov with valid slug - fetch data with debouncing
 			console.log("On SF.gov page with slug:", slug);
