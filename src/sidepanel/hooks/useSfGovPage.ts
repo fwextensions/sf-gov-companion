@@ -411,6 +411,11 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			return;
 		}
 		
+		// Clear previous page data immediately when navigating to a new page
+		// This prevents stale data from showing while new data loads
+		setPageData(null);
+		setError(null);
+		
 		// Update current state
 		currentTabStateRef.current = { url, slug, isOnSfGov: onSfGov, isAdminPage, pageId, previewUrl: null };
 		setCurrentUrl(url);
@@ -448,7 +453,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			setPageData(null);
 			setError(null);
 		}
-	}, [debouncedFetchPageData, fetchPageDataById]);
+	}, [debouncedFetchPageData, fetchPageDataById, previewUrl, isPreviewMode]);
 
 	/**
 	 * Retry function that clears cache and refetches data
