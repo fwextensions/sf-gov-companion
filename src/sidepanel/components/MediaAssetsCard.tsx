@@ -11,13 +11,19 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({ images, files 
   const hasImages = images.length > 0
   const hasFiles = files.length > 0
 
-  const handleImageClick = (imageId: number) => {
+  const handleImageClick = async (imageId: number) => {
     const adminUrl = `https://api.sf.gov/admin/images/${imageId}/`;
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.update(tabs[0].id, { url: adminUrl });
-      }
-    });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0]?.id) {
+      // navigate from within the page context to preserve history properly
+      await chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        func: (url: string) => {
+          window.location.href = url;
+        },
+        args: [adminUrl],
+      });
+    }
   };
 
   if (!hasImages && !hasFiles) {
