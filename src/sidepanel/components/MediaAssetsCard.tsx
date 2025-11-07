@@ -11,6 +11,15 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({ images, files 
   const hasImages = images.length > 0
   const hasFiles = files.length > 0
 
+  const handleImageClick = (imageId: number) => {
+    const adminUrl = `https://api.sf.gov/admin/images/${imageId}/`;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.update(tabs[0].id, { url: adminUrl });
+      }
+    });
+  };
+
   if (!hasImages && !hasFiles) {
     return (
       <Card title="Media Assets">
@@ -29,11 +38,9 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({ images, files 
             <ul className="space-y-2">
               {images.map((image) => (
                 <li key={image.id}>
-                  <a
-                    href={image.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-2"
+                  <button
+                    onClick={() => handleImageClick(image.id)}
+                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-2 cursor-pointer bg-transparent border-none p-0"
                   >
                     {image.title || image.filename || 'Untitled Image'}
                     <svg
@@ -50,7 +57,7 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({ images, files 
                         d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
                       />
                     </svg>
-                  </a>
+                  </button>
                 </li>
               ))}
             </ul>
