@@ -42,6 +42,7 @@ export interface UseSfGovPageReturn {
 	previewUrl: string | null;
 	previewTimestamp: number;
 	currentUrl: string;
+	pagePath: string;
 	retry: () => void;
 }
 
@@ -723,6 +724,16 @@ export function useSfGovPage(): UseSfGovPageReturn {
 		};
 	}, [handleTabUpdate]);
 
+	// Extract pagePath from currentUrl
+	const pagePath = (() => {
+		try {
+			const urlObj = new URL(currentUrl);
+			return urlObj.pathname;
+		} catch (error) {
+			return '';
+		}
+	})();
+
 	return {
 		pageData,
 		error,
@@ -733,6 +744,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
 		previewUrl,
 		previewTimestamp,
 		currentUrl,
+		pagePath,
 		retry
 	};
 }

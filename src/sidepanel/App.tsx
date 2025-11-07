@@ -8,6 +8,7 @@ import { TranslationsCard } from "./components/TranslationsCard";
 import { MediaAssetsCard } from "./components/MediaAssetsCard";
 import { FormConfirmationCard } from "./components/FormConfirmationCard";
 import { PreviewBanner } from "./components/PreviewBanner";
+import { FeedbackCard } from "./components/FeedbackCard";
 
 const Container = ({ children }: { children: React.ReactNode }) => (
 	<div className="min-h-screen p-4 bg-gray-50">
@@ -17,7 +18,7 @@ const Container = ({ children }: { children: React.ReactNode }) => (
 
 export default function App()
 {
-	const { pageData, error, isLoading, isOnSfGov, isAdminPage, isPreviewMode, previewUrl, previewTimestamp, retry } = useSfGovPage();
+	const { pageData, error, isLoading, isOnSfGov, isAdminPage, isPreviewMode, previewUrl, previewTimestamp, pagePath, retry } = useSfGovPage();
 
 	if (isLoading) {
 		return (
@@ -119,6 +120,7 @@ export default function App()
 				)}
 				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
+				<FeedbackCard pagePath={pagePath} />
 			</div>
 		</Container>
 	);
