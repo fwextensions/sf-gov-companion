@@ -72,7 +72,16 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 
 			{/* submission ID (small, at bottom) */}
 			<div className="text-xs text-gray-400 mt-2">
-				ID: {record.submissionId}
+				ID:{" "}
+				<a
+					href={`https://airtable.com/appo4SjothLkSxmbG/tblbhivrMRm5X8eSU/viwgRjwYR6z9CsRc2/${record.id}`}
+					target="_blank"
+					rel="noopener noreferrer"
+					title="View record in Airtable"
+					className="text-blue-600 hover:text-blue-800 hover:underline"
+				>
+					{record.submissionId}
+				</a>
 			</div>
 		</div>
 	);
