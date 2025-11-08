@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card } from './Card'
-import type { MediaAsset } from '../../types/wagtail'
+import type { MediaAsset } from '@sf-gov/shared'
 import { EditIcon } from "@/sidepanel/components/EditIcon.tsx";
 
 interface MediaAssetsCardProps {

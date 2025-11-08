@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "./Card";
-import type { FormConfirmation } from "../../types/wagtail";
+import type { FormConfirmation } from "@sf-gov/shared";
 
 interface FormConfirmationCardProps {
 	formConfirmation: FormConfirmation;

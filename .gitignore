@@ -14,6 +14,15 @@ dist-ssr
 *.local
 dist*
 
+# Monorepo build outputs
+packages/*/dist
+packages/*/release
+packages/*/.vercel
+packages/*/node_modules
+
+# Vercel
+.vercel
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

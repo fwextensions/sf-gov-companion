@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "./Card";
-import type { Agency, FormSchema } from "../../types/wagtail";
+import type { Agency, FormSchema } from "@sf-gov/shared";
 
 interface MetadataCardProps {
 	primaryAgency: Agency | undefined;

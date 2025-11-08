@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { WagtailPage, ApiError, CacheEntry } from '../../types/wagtail';
+import type { WagtailPage, ApiError, CacheEntry } from '@sf-gov/shared';
 import { findPageBySlug, findPageById } from '../../api/wagtail-client';
 
 /**

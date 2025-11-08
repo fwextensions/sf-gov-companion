@@ -3,7 +3,7 @@
  * Handles communication with the SF.gov Wagtail CMS API
  */
 
-import type { WagtailPage, ApiError, MediaAsset, Translation } from '../types/wagtail';
+import type { WagtailPage, ApiError, MediaAsset, Translation, PreviewParams } from '@sf-gov/shared';
 
 /**
  * Base URL for the Wagtail API
@@ -14,6 +14,23 @@ const BASE_API_URL = 'https://api.sf.gov/api/v2/';
  * Default timeout for API requests in milliseconds
  */
 const DEFAULT_TIMEOUT = 10000;
+
+/**
+ * Appends preview parameters to a URL
+ * @param url - The base URL
+ * @param previewParams - Optional preview parameters to append
+ * @returns URL with preview parameters appended
+ */
+function appendPreviewParams(url: string, previewParams?: PreviewParams): string {
+	if (!previewParams) {
+		return url;
+	}
+
+	const urlObj = new URL(url);
+	urlObj.searchParams.set('preview', previewParams.preview.toString());
+	urlObj.searchParams.set('ts', previewParams.ts);
+	return urlObj.toString();
+}
 
 /**
  * Fetches a URL with a timeout using AbortController
@@ -44,18 +61,23 @@ async function fetchWithTimeout(url: string, timeout: number = DEFAULT_TIMEOUT):
 /**
  * Finds a Wagtail page by its ID
  * @param pageId - The page ID to fetch
+ * @param previewParams - Optional preview parameters for draft content
  * @returns Promise resolving to WagtailPage or null if not found
  * @throws ApiError for network errors, timeouts, or server errors
  */
-export async function findPageById(pageId: number): Promise<WagtailPage | null> {
+export async function findPageById(pageId: number, previewParams?: PreviewParams): Promise<WagtailPage | null> {
 	try {
-		const detailUrl = `${BASE_API_URL}pages/${pageId}/?fields=*`;
+		const baseUrl = `${BASE_API_URL}pages/${pageId}/?fields=*`;
+		const detailUrl = appendPreviewParams(baseUrl, previewParams);
 		console.log('Fetching page by ID from:', detailUrl);
 		const response = await fetchWithTimeout(detailUrl);
 
 		// Handle HTTP error status codes
 		if (response.status === 404) {
-			throw createApiError('not_found', 'This page is not found in the CMS', 404);
+			const message = previewParams 
+				? 'Preview is not available for this page. The draft may have been deleted or the preview link expired.'
+				: 'This page is not found in the CMS';
+			throw createApiError('not_found', message, 404);
 		}
 
 		if (response.status === 500) {
@@ -76,7 +98,8 @@ export async function findPageById(pageId: number): Promise<WagtailPage | null> 
 		}
 
 		// Fetch all translations for this slug
-		const translationsUrl = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+		const baseTranslationsUrl = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+		const translationsUrl = appendPreviewParams(baseTranslationsUrl, previewParams);
 		const translationsResponse = await fetchWithTimeout(translationsUrl);
 
 		if (translationsResponse.ok) {
@@ -106,17 +129,22 @@ export async function findPageById(pageId: number): Promise<WagtailPage | null> 
  * Finds a Wagtail page by its slug
  * @param slug - The page slug to search for
  * @param currentUrl - Optional current URL to determine which locale version to use
+ * @param previewParams - Optional preview parameters for draft content
  * @returns Promise resolving to WagtailPage or null if not found
  * @throws ApiError for network errors, timeouts, or server errors
  */
-export async function findPageBySlug(slug: string, currentUrl?: string): Promise<WagtailPage | null> {
+export async function findPageBySlug(slug: string, currentUrl?: string, previewParams?: PreviewParams): Promise<WagtailPage | null> {
   try {
-    const url = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+    const baseUrl = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+    const url = appendPreviewParams(baseUrl, previewParams);
     const response = await fetchWithTimeout(url);
 
     // Handle HTTP error status codes
     if (response.status === 404) {
-      throw createApiError('not_found', 'This page is not found in the CMS', 404);
+      const message = previewParams 
+        ? 'Preview is not available for this page. The draft may have been deleted or the preview link expired.'
+        : 'This page is not found in the CMS';
+      throw createApiError('not_found', message, 404);
     }
 
     if (response.status === 500) {
@@ -160,11 +188,12 @@ export async function findPageBySlug(slug: string, currentUrl?: string): Promise
     }
 
     // Fetch full page details from the detail URL
-    const detailUrl = currentPageData.meta?.detail_url;
-    if (!detailUrl) {
+    const baseDetailUrl = currentPageData.meta?.detail_url;
+    if (!baseDetailUrl) {
       throw createApiError('network', 'Page detail URL not found in API response');
     }
 
+    const detailUrl = appendPreviewParams(baseDetailUrl, previewParams);
     console.log('Fetching full page details from:', detailUrl);
     const detailResponse = await fetchWithTimeout(detailUrl);
 

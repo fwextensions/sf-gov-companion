@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ApiError } from '../../types/wagtail'
+import type { ApiError } from '@sf-gov/shared'
 
 interface ErrorStateProps {
   error: ApiError

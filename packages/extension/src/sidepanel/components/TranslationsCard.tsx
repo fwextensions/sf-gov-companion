@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card } from './Card'
-import type { Translation } from '../../types/wagtail'
+import type { Translation } from '@sf-gov/shared'
 
 interface TranslationsCardProps {
   translations: Translation[]

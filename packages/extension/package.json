@@ -1,0 +1,31 @@
+{
+	"name": "@sf-gov/extension",
+	"type": "module",
+	"version": "0.0.4",
+	"private": true,
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc -b && vite build",
+		"preview": "vite preview",
+		"release": "tsc -b && npm version patch && vite build",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@sf-gov/shared": "*",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"devDependencies": {
+		"@crxjs/vite-plugin": "^2.2.1",
+		"@tailwindcss/vite": "^4.1.16",
+		"@types/chrome": "^0.1.27",
+		"@types/node": "^24.9.2",
+		"@types/react": "^19.2.2",
+		"@types/react-dom": "^19.2.2",
+		"@vitejs/plugin-react": "^5.1.0",
+		"tailwindcss": "^4.1.16",
+		"typescript": "~5.9.3",
+		"vite": "^7.1.12",
+		"vite-plugin-zip-pack": "^1.2.4"
+	}
+}

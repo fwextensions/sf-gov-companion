@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "./Card";
-import type { FeedbackRecord, AirtableApiError } from "@/types/airtable";
+import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
 import { getFeedbackByPath, getAccessToken, setAccessToken, clearCache } from "@/api/airtable-client";
 
 interface FeedbackCardProps {

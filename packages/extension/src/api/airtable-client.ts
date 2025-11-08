@@ -3,7 +3,7 @@
  * Handles communication with the Airtable API for user feedback data
  */
 
-import type { FeedbackRecord, AirtableResponse, AirtableApiError } from "../types/airtable";
+import type { FeedbackRecord, AirtableResponse, AirtableApiError } from "@sf-gov/shared";
 
 /**
  * Airtable base ID for SF.gov feedback
