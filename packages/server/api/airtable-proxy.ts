@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import type { AirtableResponse, FeedbackRecord } from "@sf-gov/shared";
+
+// initialize Upstash Redis client
+const redis = Redis.fromEnv();
 
 // parse optional environment variables with defaults
 const SESSION_CACHE_TTL = parseInt(process.env.SESSION_CACHE_TTL || "300", 10); // default: 5 minutes in seconds
@@ -8,14 +11,17 @@ const WAGTAIL_VALIDATION_TIMEOUT = parseInt(process.env.WAGTAIL_VALIDATION_TIMEO
 
 /**
  * Environment variables required for the proxy
+ * 
+ * Note: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are automatically
+ * read by Redis.fromEnv() and do not need to be included here.
  */
 interface ProxyEnv {
 	WAGTAIL_API_URL: string;
 	AIRTABLE_API_KEY: string;
 	AIRTABLE_BASE_ID: string;
 	AIRTABLE_TABLE_NAME: string;
-	SESSION_CACHE_TTL?: number;
-	WAGTAIL_VALIDATION_TIMEOUT?: number;
+	SESSION_CACHE_TTL?: number; // optional: cache TTL in seconds (default: 300)
+	WAGTAIL_VALIDATION_TIMEOUT?: number; // optional: validation timeout in milliseconds (default: 5000)
 }
 
 /**
@@ -62,8 +68,11 @@ function validateOrigin(origin: string | undefined): boolean {
 }
 
 /**
- * Implements rate limiting using Vercel KV
+ * Implements rate limiting using Upstash Redis
  * Returns true if request should be allowed, false if rate limited
+ * 
+ * Uses Redis INCR and EXPIRE commands to track request counts per identifier
+ * within a sliding window. If Redis is unavailable, fails open to allow requests.
  */
 async function checkRateLimit(identifier: string): Promise<boolean> {
 	const key = `ratelimit:${identifier}`;
@@ -71,17 +80,17 @@ async function checkRateLimit(identifier: string): Promise<boolean> {
 	const window = 10; // seconds
 
 	try {
-		const current = await kv.incr(key);
+		const current = await redis.incr(key);
 		
 		if (current === 1) {
-			// First request in window, set expiration
-			await kv.expire(key, window);
+			// first request in window, set expiration using Redis EXPIRE
+			await redis.expire(key, window);
 		}
 
 		return current <= limit;
 	} catch (error) {
-		// If KV fails, allow the request (fail open)
-		console.error("Rate limit check failed:", error);
+		// if Upstash Redis fails, allow the request (fail open)
+		console.error("Redis rate limit check failed:", error);
 		return true;
 	}
 }
@@ -125,50 +134,53 @@ function truncateSessionId(sessionId: string): string {
 }
 
 /**
- * Validates session with caching using Vercel KV
+ * Validates session with caching using Upstash Redis
  * Cache TTL: configurable via SESSION_CACHE_TTL environment variable (default: 5 minutes)
+ * 
+ * Uses Redis GET and SET commands with expiration to cache session validation results.
+ * Falls back to direct Wagtail validation if Redis operations fail.
  */
 async function validateSessionWithCache(sessionId: string, wagtailApiUrl: string): Promise<boolean> {
 	const cacheKey = `session:${sessionId}`;
 	const truncatedId = truncateSessionId(sessionId);
 
 	try {
-		// Check cache first with timing
+		// check Upstash Redis cache first with timing
 		const cacheReadStart = Date.now();
-		const cached = await kv.get<boolean>(cacheKey);
+		const cached = await redis.get<boolean>(cacheKey);
 		const cacheReadDuration = Date.now() - cacheReadStart;
 
 		if (cached !== null) {
-			// Cache hit - log with performance timing
+			// Redis cache hit - log with performance timing
 			console.log(`Session cache hit for session:${truncatedId} (${cacheReadDuration}ms)`);
 			return cached;
 		}
 
-		// Cache miss - log before validation
+		// Redis cache miss - log before validation
 		console.log(`Session cache miss for session:${truncatedId}, validating with Wagtail`);
 
-		// Validate with Wagtail
+		// validate with Wagtail
 		const isValid = await validateWagtailSession(sessionId, wagtailApiUrl);
 
-		// Store result in cache if valid
+		// store result in Upstash Redis cache if valid
 		if (isValid) {
 			try {
 				const cacheWriteStart = Date.now();
-				await kv.setex(cacheKey, SESSION_CACHE_TTL, true);
+				await redis.set(cacheKey, true, { ex: SESSION_CACHE_TTL });
 				const cacheWriteDuration = Date.now() - cacheWriteStart;
 				
-				// Cache write success - log with timing
+				// Redis cache write success - log with timing
 				console.log(`Session validation result cached for session:${truncatedId} (${cacheWriteDuration}ms)`);
 			} catch (writeError) {
-				// Cache write failed - log error but continue
-				console.error(`Session cache write failed for session:${truncatedId}:`, writeError);
+				// Redis cache write failed - log error but continue
+				console.error(`Redis cache write failed for session:${truncatedId}:`, writeError);
 			}
 		}
 
 		return isValid;
 	} catch (error) {
-		// KV read operation failed - log error and fall back to direct validation
-		console.error(`Session cache read failed for session:${truncatedId}:`, error);
+		// Upstash Redis read operation failed - log error and fall back to direct validation
+		console.error(`Redis cache read failed for session:${truncatedId}:`, error);
 		return await validateWagtailSession(sessionId, wagtailApiUrl);
 	}
 }
