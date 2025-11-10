@@ -1,5 +1,5 @@
 {
-	"name": "sf-gov-wagtail-extension-monorepo",
+	"name": "sf-gov-companion",
 	"private": true,
 	"workspaces": [
 		"packages/*"
@@ -7,13 +7,15 @@
 	"scripts": {
 		"dev": "npm run dev --workspaces --if-present",
 		"dev:extension": "npm run dev --workspace=@sf-gov/extension",
-		"dev:api": "npm run dev --workspace=@sf-gov/api",
+		"dev:server": "npx vercel dev --listen 3001",
+		"postinstall": "patch-package",
 		"build": "npm run build --workspaces --if-present",
 		"build:extension": "npm run build --workspace=@sf-gov/extension",
-		"build:api": "npm run build --workspace=@sf-gov/api",
+		"build:server": "npm run build --workspace=@sf-gov/server",
 		"type-check": "npm run type-check --workspaces --if-present"
 	},
 	"devDependencies": {
-		"typescript": "^5.9.0"
+		"typescript": "^5.9.3",
+		"patch-package": "^8.0.1"
 	}
 }

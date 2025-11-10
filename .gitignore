@@ -20,6 +20,10 @@ packages/*/release
 packages/*/.vercel
 packages/*/node_modules
 
+# Environment variables
+.env
+.env.local
+
 # Vercel
 .vercel
 
@@ -33,3 +37,5 @@ packages/*/node_modules
 *.njsproj
 *.sln
 *.sw?
+
+.vercel

@@ -102,6 +102,7 @@
 
 
 
+
   - Run npm run dev:extension to verify dev server starts
   - Verify extension builds successfully with npm run build:extension
   - Verify types from @sf-gov/shared are accessible
@@ -112,7 +113,12 @@
 
 ## Phase 2: API Package (Start After Extension Works)
 
-- [ ] 10. Create API package structure
+- [x] 10. Create API package structure
+
+
+
+
+
   - Create packages/api directory structure
   - Create packages/api/api/ directory for serverless functions
   - Create packages/api/lib/ directory for utilities
@@ -121,16 +127,26 @@
   - Create packages/api/vercel.json for Vercel configuration
   - _Requirements: 1.3, 3.3, 4.3_
 
-- [ ] 11. Implement Airtable proxy serverless function
+
+- [x] 11. Implement Airtable proxy serverless function
+
+
+
   - Create packages/api/api/airtable-proxy.ts
   - Implement session validation logic using Wagtail API
   - Implement Vercel KV caching for session validation
   - Implement rate limiting using Vercel KV
   - Implement Airtable API fetching with proper error handling
   - Add CORS headers and origin validation
+
   - _Requirements: 8.4_
 
-- [ ] 12. Install and test API workspace
+- [x] 12. Install and test API workspace
+
+
+
+
+
   - Install API dependencies
   - Verify @sf-gov/shared is properly linked to API
   - Run npm run dev:api to verify Vercel dev server starts
