@@ -2,6 +2,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { kv } from "@vercel/kv";
 import type { AirtableResponse, FeedbackRecord } from "@sf-gov/shared";
 
+// parse optional environment variables with defaults
+const SESSION_CACHE_TTL = parseInt(process.env.SESSION_CACHE_TTL || "300", 10); // default: 5 minutes in seconds
+const WAGTAIL_VALIDATION_TIMEOUT = parseInt(process.env.WAGTAIL_VALIDATION_TIMEOUT || "5000", 10); // default: 5 seconds in milliseconds
+
 /**
  * Environment variables required for the proxy
  */
@@ -10,6 +14,8 @@ interface ProxyEnv {
 	AIRTABLE_API_KEY: string;
 	AIRTABLE_BASE_ID: string;
 	AIRTABLE_TABLE_NAME: string;
+	SESSION_CACHE_TTL?: number;
+	WAGTAIL_VALIDATION_TIMEOUT?: number;
 }
 
 /**
@@ -21,10 +27,12 @@ function validateEnv(): ProxyEnv {
 		AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY,
 		AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID,
 		AIRTABLE_TABLE_NAME: process.env.AIRTABLE_TABLE_NAME,
+		SESSION_CACHE_TTL,
+		WAGTAIL_VALIDATION_TIMEOUT,
 	};
 
 	const missing = Object.entries(env)
-		.filter(([_, value]) => !value)
+		.filter(([key, value]) => !value && key !== "SESSION_CACHE_TTL" && key !== "WAGTAIL_VALIDATION_TIMEOUT")
 		.map(([key]) => key);
 
 	if (missing.length > 0) {
@@ -96,7 +104,7 @@ async function validateWagtailSession(sessionId: string, wagtailApiUrl: string):
 				"X-SF-Gov-Extension": "companion",
 			},
 			redirect: "manual", // don't follow redirects
-			signal: AbortSignal.timeout(5000), // 5 second timeout
+			signal: AbortSignal.timeout(WAGTAIL_VALIDATION_TIMEOUT),
 		});
 
 		console.log(`Wagtail session validation response: ${response.status} ${response.statusText}`);
@@ -110,32 +118,57 @@ async function validateWagtailSession(sessionId: string, wagtailApiUrl: string):
 }
 
 /**
+ * Truncates session ID for logging (first 8 characters)
+ */
+function truncateSessionId(sessionId: string): string {
+	return sessionId.substring(0, 8);
+}
+
+/**
  * Validates session with caching using Vercel KV
- * Cache TTL: 5 minutes
+ * Cache TTL: configurable via SESSION_CACHE_TTL environment variable (default: 5 minutes)
  */
 async function validateSessionWithCache(sessionId: string, wagtailApiUrl: string): Promise<boolean> {
 	const cacheKey = `session:${sessionId}`;
-	const cacheTTL = 300; // 5 minutes in seconds
+	const truncatedId = truncateSessionId(sessionId);
 
 	try {
-		// Check cache first
+		// Check cache first with timing
+		const cacheReadStart = Date.now();
 		const cached = await kv.get<boolean>(cacheKey);
+		const cacheReadDuration = Date.now() - cacheReadStart;
+
 		if (cached !== null) {
+			// Cache hit - log with performance timing
+			console.log(`Session cache hit for session:${truncatedId} (${cacheReadDuration}ms)`);
 			return cached;
 		}
 
-		// Cache miss, validate with Wagtail
+		// Cache miss - log before validation
+		console.log(`Session cache miss for session:${truncatedId}, validating with Wagtail`);
+
+		// Validate with Wagtail
 		const isValid = await validateWagtailSession(sessionId, wagtailApiUrl);
 
-		// Store result in cache
+		// Store result in cache if valid
 		if (isValid) {
-			await kv.setex(cacheKey, cacheTTL, true);
+			try {
+				const cacheWriteStart = Date.now();
+				await kv.setex(cacheKey, SESSION_CACHE_TTL, true);
+				const cacheWriteDuration = Date.now() - cacheWriteStart;
+				
+				// Cache write success - log with timing
+				console.log(`Session validation result cached for session:${truncatedId} (${cacheWriteDuration}ms)`);
+			} catch (writeError) {
+				// Cache write failed - log error but continue
+				console.error(`Session cache write failed for session:${truncatedId}:`, writeError);
+			}
 		}
 
 		return isValid;
 	} catch (error) {
-		// If KV fails, fall back to direct validation
-		console.error("Session cache check failed, falling back to direct validation:", error);
+		// KV read operation failed - log error and fall back to direct validation
+		console.error(`Session cache read failed for session:${truncatedId}:`, error);
 		return await validateWagtailSession(sessionId, wagtailApiUrl);
 	}
 }
