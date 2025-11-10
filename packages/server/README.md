@@ -23,10 +23,16 @@ AIRTABLE_BASE_ID=your_airtable_base_id
 AIRTABLE_TABLE_NAME=your_table_name
 ```
 
-For Vercel KV (optional for local development):
+For Upstash Redis (automatically set by Vercel when connected via Marketplace):
 ```bash
-KV_REST_API_URL=your_kv_url
-KV_REST_API_TOKEN=your_kv_token
+UPSTASH_REDIS_REST_URL=your_upstash_redis_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_token
+```
+
+Optional configuration:
+```bash
+SESSION_CACHE_TTL=300  # cache TTL in seconds (default: 300)
+WAGTAIL_VALIDATION_TIMEOUT=5000  # validation timeout in milliseconds (default: 5000)
 ```
 
 ## Development
@@ -111,22 +117,61 @@ Or from the Vercel dashboard, connect your GitHub repository and Vercel will aut
 
 Set the following environment variables in your Vercel project settings:
 
+**Required:**
 - `WAGTAIL_API_URL`
 - `AIRTABLE_API_KEY`
 - `AIRTABLE_BASE_ID`
 - `AIRTABLE_TABLE_NAME`
 
-Vercel KV variables are automatically configured when you add a KV store to your project.
+**Automatically Set by Vercel (when Upstash Redis is connected):**
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
+**Optional (with defaults):**
+- `SESSION_CACHE_TTL` (default: 300 seconds)
+- `WAGTAIL_VALIDATION_TIMEOUT` (default: 5000 milliseconds)
 
 ## Architecture
 
 - **Session Validation**: Validates Wagtail admin sessions by making requests to the Wagtail API
-- **Caching**: Uses Vercel KV to cache session validation results (5-minute TTL)
-- **Rate Limiting**: Limits requests to 10 per 10 seconds per session using Vercel KV
+- **Caching**: Uses Upstash Redis to cache session validation results (5-minute TTL, configurable via `SESSION_CACHE_TTL`)
+- **Rate Limiting**: Limits requests to 10 per 10 seconds per session using Upstash Redis
 - **Security**: Validates origin headers, never exposes Airtable API key to clients
+
+## Upstash Redis Setup
+
+The API uses Upstash Redis for session caching and rate limiting. To set up Upstash Redis:
+
+### Production (Vercel)
+
+1. Navigate to your Vercel project dashboard
+2. Go to the "Storage" tab
+3. Click "Create Database" or "Browse Marketplace"
+4. Select "Upstash Redis" from the Marketplace integrations
+5. Click "Add Integration" and follow the prompts
+6. Create a database (Free tier is sufficient for this use case)
+7. Connect the database to your Vercel project
+
+Vercel automatically injects the following environment variables:
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
+### Local Development
+
+To test with Upstash Redis locally:
+
+```bash
+# Pull environment variables from Vercel (includes Upstash credentials)
+vercel env pull .env.development.local
+
+# Start the development server with Upstash access
+vercel dev
+```
+
+**Note:** Standard `npm run dev:server` will not have Upstash access locally unless you manually copy the environment variables. Use `vercel dev` for full Redis functionality during development.
 
 ## Dependencies
 
 - `@vercel/node`: Vercel serverless function runtime
-- `@vercel/kv`: Vercel KV for caching and rate limiting
+- `@upstash/redis`: Upstash Redis SDK for caching and rate limiting
 - `@sf-gov/shared`: Shared TypeScript types

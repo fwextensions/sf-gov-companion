@@ -217,7 +217,7 @@ Vercel serverless functions for the Airtable proxy endpoint. Handles authenticat
 
 **Dependencies:**
 - `@vercel/node` for serverless function runtime
-- `@vercel/kv` for session caching and rate limiting
+- `@upstash/redis` for session caching and rate limiting
 - `@sf-gov/shared` for shared types
 
 ### Shared Workspace (`@sf-gov/shared`)
@@ -252,7 +252,7 @@ Each workspace extends the root `tsconfig.json` for consistent configuration.
 ### API
 - **Vercel**: Serverless function platform
 - **@vercel/node**: Serverless function runtime
-- **@vercel/kv**: Redis-compatible key-value store
+- **Upstash Redis**: Serverless Redis database for caching and rate limiting
 
 ### Shared
 - **TypeScript 5.9**: Type definitions only
