@@ -8,7 +8,7 @@ import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
 /**
  * API proxy endpoint URL
  */
-const API_PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "https://sf-gov-companion.vercel.app/api/airtable-proxy";
+const API_PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "https://sfgov-companion-api.vercel.app/api/airtable-proxy";
 
 /**
  * Default timeout for API requests in milliseconds
