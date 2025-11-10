@@ -73,7 +73,7 @@ sf-gov-companion/              # Root directory (unchanged path)
 - Most current root files move into `packages/extension/`
 - `.kiro/` directory stays at root (unchanged)
 - New root `package.json` for workspace management
-- New `packages/api/` and `packages/shared/` directories
+- New `packages/server/` and `packages/shared/` directories
 
 ### Workspace Relationships
 
@@ -112,10 +112,10 @@ graph TD
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "dev:extension": "npm run dev --workspace=@sf-gov/extension",
-    "dev:api": "npm run dev --workspace=@sf-gov/api",
+    "dev:server": "npm run dev --workspace=@sf-gov/server",
     "build": "npm run build --workspaces --if-present",
     "build:extension": "npm run build --workspace=@sf-gov/extension",
-    "build:api": "npm run build --workspace=@sf-gov/api",
+    "build:server": "npm run build --workspace=@sf-gov/server",
     "type-check": "npm run type-check --workspaces --if-present"
   },
   "devDependencies": {
@@ -191,7 +191,7 @@ import type { WagtailPage, AirtableRecord } from '@sf-gov/shared';
 
 **Purpose**: Vercel serverless functions for Airtable proxy.
 
-**Package Name**: `@sf-gov/api`
+**Package Name**: `@sf-gov/server`
 
 **Key Dependencies**:
 - `@sf-gov/shared` (workspace dependency)
@@ -206,10 +206,10 @@ import type { WagtailPage, AirtableRecord } from '@sf-gov/shared';
 import type { AirtableRecord, AirtableFeedbackFields } from '@sf-gov/shared';
 ```
 
-**Scripts** (`packages/api/package.json`):
+**Scripts** (`packages/server/package.json`):
 ```json
 {
-  "name": "@sf-gov/api",
+  "name": "@sf-gov/server",
   "version": "1.0.0",
   "scripts": {
     "dev": "vercel dev",
@@ -220,7 +220,7 @@ import type { AirtableRecord, AirtableFeedbackFields } from '@sf-gov/shared';
 }
 ```
 
-**Vercel Configuration** (`packages/api/vercel.json`):
+**Vercel Configuration** (`packages/server/vercel.json`):
 ```json
 {
   "version": 2,
@@ -305,7 +305,7 @@ classDiagram
     }
     
     class APIWorkspace {
-        +name: "@sf-gov/api"
+        +name: "@sf-gov/server"
         +dependencies
         +devDependencies
         +deploy() Vercel
@@ -373,7 +373,7 @@ classDiagram
 ### Phase 1: Setup Monorepo Structure
 
 1. Create `./packages/` directory at root
-2. Create workspace directories: `./packages/extension/`, `./packages/api/`, `./packages/shared/`
+2. Create workspace directories: `./packages/extension/`, `./packages/server/`, `./packages/shared/`
 3. Backup current root `package.json` (will be moved to extension)
 4. Create new root `./package.json` with workspace configuration
 5. Create new root `./tsconfig.json` for base configuration
@@ -404,13 +404,13 @@ classDiagram
 
 ### Phase 4: Create API Package
 
-1. Create `./packages/api/` directory structure
-2. Create `./packages/api/api/` directory for serverless functions
-3. Add `./packages/api/api/airtable-proxy.ts` serverless function
-4. Create `./packages/api/lib/` for utility functions
-5. Create `./packages/api/package.json`
-6. Create `./packages/api/tsconfig.json`
-7. Create `./packages/api/vercel.json`
+1. Create `./packages/server/` directory structure
+2. Create `./packages/server/api/` directory for serverless functions
+3. Add `./packages/server/api/airtable-proxy.ts` serverless function
+4. Create `./packages/server/lib/` for utility functions
+5. Create `./packages/server/package.json`
+6. Create `./packages/server/tsconfig.json`
+7. Create `./packages/server/vercel.json`
 8. Add Vercel KV integration
 
 ### Phase 5: Update Dependencies
@@ -451,8 +451,8 @@ classDiagram
 
 ### API Deployment
 
-1. Build: `npm run build:api` (or automatic via Vercel)
-2. Deploy: `cd packages/api && vercel --prod`
+1. Build: `npm run build:server` (or automatic via Vercel)
+2. Deploy: `cd packages/server && vercel --prod`
 3. Environment: Vercel serverless functions
 
 ### Independent Versioning

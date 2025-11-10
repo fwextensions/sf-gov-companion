@@ -47,7 +47,7 @@ Convert the SF.gov Wagtail Extension project from a single-package structure to 
 
 1. THE System SHALL use npm workspaces for dependency management
 2. THE Extension_Workspace SHALL declare its own dependencies in `packages/extension/package.json`
-3. THE API_Workspace SHALL declare its own dependencies in `packages/api/package.json`
+3. THE API_Workspace SHALL declare its own dependencies in `packages/server/package.json`
 4. THE Shared_Workspace SHALL declare its own dependencies in `packages/shared/package.json`
 5. THE System SHALL hoist common dependencies to the root `node_modules` when possible
 
@@ -95,7 +95,7 @@ Convert the SF.gov Wagtail Extension project from a single-package structure to 
 
 1. THE System SHALL move all extension source code to `packages/extension/src/`
 2. THE System SHALL move extension configuration files to `packages/extension/`
-3. THE System SHALL create API package structure in `packages/api/`
+3. THE System SHALL create API package structure in `packages/server/`
 4. THE System SHALL extract shared types to `packages/shared/src/types/`
 5. THE System SHALL update all import paths to reflect new workspace structure
 

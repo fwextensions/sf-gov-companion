@@ -56,7 +56,7 @@ After successful authentication, the following cookies are set:
 - **IDCS session cookies** (domain: `identity.oraclecloud.com`) - Oracle IDCS session
 - **Portal cookies** (domain: `myapps.sfgov.org`) - City portal session
 
-The extension only needs access to the `sessionid` cookie from `api.sf.gov` domain.
+The extension reads the `sessionid` cookie from both `api.sf.gov` and `.sf.gov` domains (with `api.sf.gov` checked first as a fallback).
 
 ### Session Lifecycle
 
@@ -146,8 +146,8 @@ sequenceDiagram
         alt Cache hit (< 5 min old)
             Note over Proxy: Session previously validated
         else Cache miss
-            Proxy->>Wagtail: GET /admin/api/v2/pages/<br/>Cookie: sessionid
-            Wagtail-->>Proxy: 200 OK or 401 Unauthorized
+            Proxy->>Wagtail: GET /admin/pages<br/>Cookie: sessionid
+            Wagtail-->>Proxy: 200 OK, 301/302 redirect, or 401 Unauthorized
             
             alt Session valid
                 Proxy->>Proxy: Store validation in KV (5 min TTL)
@@ -226,6 +226,44 @@ sequenceDiagram
    - Wagtail's existing role-based access control applies
    - No additional permission system required
 
+## Session Validation Details
+
+### Validation Endpoint
+
+The proxy validates Wagtail sessions by making a request to:
+```
+GET https://api.sf.gov/admin/pages
+Cookie: sessionid={session_token}
+```
+
+**Validation Logic:**
+- The proxy uses `redirect: "manual"` to prevent following redirects
+- Valid sessions return either:
+  - `200 OK` - Direct access granted
+  - `301/302/3xx` - Redirect to user's page list (indicates authenticated user)
+- Invalid sessions return:
+  - `401 Unauthorized` - Session expired or invalid
+  - `403 Forbidden` - Access denied
+
+**Why `/admin/pages`?**
+- This is the Wagtail admin page list endpoint
+- Authenticated users are automatically redirected to their personalized page list
+- Unauthenticated users receive a 401 or redirect to login
+- The redirect itself (301/302) indicates a valid session
+
+### Session Validation Cache
+
+To reduce load on the Wagtail API, session validations are cached in Vercel KV:
+
+- **Cache key**: `session:{sessionid}`
+- **TTL**: 5 minutes (300 seconds)
+- **Behavior**: 
+  - Cache hit: Skip Wagtail validation, return cached result
+  - Cache miss: Validate with Wagtail, store result in cache
+  - KV unavailable: Fall back to direct validation (no caching)
+
+This provides a balance between security (sessions can't be used for more than 5 minutes after expiry) and performance (reduces Wagtail API load by ~90%).
+
 ## Implementation Requirements
 
 ### Extension Manifest Permissions
@@ -249,13 +287,33 @@ Note: The extension needs access to cookies from `api.sf.gov` domain where the W
 
 ```typescript
 // Extension reads the Django session cookie
-async function getWagtailSessionCookie(): Promise<string | null> {
-	const cookies = await chrome.cookies.getAll({
-		domain: 'api.sf.gov',
-		name: 'sessionid',
-	});
-	
-	return cookies[0]?.value || null;
+async function getWagtailSessionId(): Promise<string | null> {
+	try {
+		// try to get cookie from api.sf.gov first (where admin is hosted)
+		let cookies = await chrome.cookies.getAll({
+			domain: "api.sf.gov",
+			name: "sessionid",
+		});
+
+		// fallback to .sf.gov domain if not found
+		if (cookies.length === 0) {
+			cookies = await chrome.cookies.getAll({
+				domain: ".sf.gov",
+				name: "sessionid",
+			});
+		}
+
+		if (cookies.length > 0) {
+			console.log("Found Wagtail session cookie:", cookies[0].domain);
+			return cookies[0].value;
+		}
+
+		console.log("No Wagtail session cookie found");
+		return null;
+	} catch (error) {
+		console.error("Failed to retrieve Wagtail session cookie:", error);
+		return null;
+	}
 }
 ```
 
@@ -264,16 +322,18 @@ The extension does not need to access or understand the SAML flow, IDCS cookies,
 ### Vercel Environment Variables
 
 ```bash
-AIRTABLE_API_KEY=key***************
+AIRTABLE_API_KEY=pat***************
 AIRTABLE_BASE_ID=app***************
-WAGTAIL_API_URL=https://api.sf.gov/admin/api/v2
-WAGTAIL_ADMIN_DOMAIN=api.sf.gov
-EXTENSION_SECRET=random-secret-token
-KV_REST_API_URL=https://***  # Vercel KV (automatically set)
-KV_REST_API_TOKEN=***         # Vercel KV (automatically set)
+AIRTABLE_TABLE_NAME="Karl data"
+WAGTAIL_API_URL=https://api.sf.gov/admin
+KV_REST_API_URL=https://***  # Vercel KV (automatically set, optional for local dev)
+KV_REST_API_TOKEN=***         # Vercel KV (automatically set, optional for local dev)
 ```
 
-Note: Vercel KV environment variables are automatically configured when you create a KV store in your Vercel project.
+**Notes:**
+- Vercel KV environment variables are automatically configured when you create a KV store in your Vercel project
+- KV is optional for local development - the proxy will gracefully fall back to direct validation if KV is unavailable
+- `WAGTAIL_API_URL` should point to the Wagtail admin base URL (without `/pages` - that's added by the validation function)
 
 ### API Endpoints
 
@@ -284,7 +344,7 @@ Note: Vercel KV environment variables are automatically configured when you crea
 - `Origin`: chrome-extension://{extension-id}
 
 **Query Parameters:**
-- `pageId`: SF.gov page identifier
+- `pagePath`: SF.gov page path (e.g., `/departments/office-mayor`)
 
 **Response:**
 ```json
@@ -292,21 +352,25 @@ Note: Vercel KV environment variables are automatically configured when you crea
   "records": [
     {
       "id": "rec123",
-      "fields": {
-        "PageID": "12345",
-        "Feedback": "This page was helpful",
-        "Timestamp": "2025-11-07T10:30:00Z"
-      }
+      "submissionId": "sub_abc123",
+      "submissionCreated": "2025-11-07T10:30:00Z",
+      "referrer": "/departments/office-mayor",
+      "wasHelpful": "yes",
+      "issueCategory": null,
+      "whatWasHelpful": "Clear information",
+      "additionalDetails": "Very helpful page"
     }
   ]
 }
 ```
 
 **Error Responses:**
-- `401 Unauthorized`: Invalid or expired session
-- `403 Forbidden`: Invalid origin or missing secret
-- `429 Too Many Requests`: Rate limit exceeded
-- `500 Internal Server Error`: Airtable or Wagtail API error
+- `400 Bad Request`: Missing pagePath query parameter
+- `401 Unauthorized`: Invalid or expired session, or missing session token
+- `403 Forbidden`: Invalid origin
+- `429 Too Many Requests`: Rate limit exceeded (10 requests per 10 seconds)
+- `500 Internal Server Error`: Server configuration error
+- `502 Bad Gateway`: Airtable API error
 
 ## Performance Considerations
 

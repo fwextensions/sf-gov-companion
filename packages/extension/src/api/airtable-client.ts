@@ -1,19 +1,14 @@
 /**
  * Airtable API Client
- * Handles communication with the Airtable API for user feedback data
+ * Handles communication with the Airtable proxy API for user feedback data
  */
 
-import type { FeedbackRecord, AirtableResponse, AirtableApiError } from "@sf-gov/shared";
-
-/**
- * Airtable base ID for SF.gov feedback
- */
-const BASE_ID = "appo4SjothLkSxmbG";
+import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
 
 /**
- * Airtable table name
+ * API proxy endpoint URL
  */
-const TABLE_NAME = "Karl data";
+const API_PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "https://sf-gov-companion.vercel.app/api/airtable-proxy";
 
 /**
  * Default timeout for API requests in milliseconds
@@ -37,6 +32,13 @@ interface CacheEntry {
  * In-memory cache for feedback records
  */
 const feedbackCache = new Map<string, CacheEntry>();
+
+/**
+ * Proxy API response structure
+ */
+interface ProxyResponse {
+	records: FeedbackRecord[];
+}
 
 /**
  * Fetches a URL with a timeout using AbortController
@@ -73,30 +75,35 @@ async function fetchWithTimeout(
 }
 
 /**
- * Retrieves the Airtable Personal Access Token from chrome.storage.sync
- * @returns Promise resolving to the token string or null if not configured
+ * Retrieves the Wagtail session ID from browser cookies
+ * @returns Promise resolving to the session ID string or null if not found
  */
-export async function getAccessToken(): Promise<string | null> {
+export async function getWagtailSessionId(): Promise<string | null> {
 	try {
-		const result = await chrome.storage.sync.get("airtableAccessToken");
-		return result.airtableAccessToken || null;
-	} catch (error) {
-		console.error("Failed to retrieve Airtable access token:", error);
-		return null;
-	}
-}
+		// try to get cookie from api.sf.gov first (where admin is hosted)
+		let cookies = await chrome.cookies.getAll({
+			domain: "api.sf.gov",
+			name: "sessionid",
+		});
 
-/**
- * Stores the Airtable Personal Access Token in chrome.storage.sync
- * @param token - The Personal Access Token to store
- * @returns Promise that resolves when the token is stored
- */
-export async function setAccessToken(token: string): Promise<void> {
-	try {
-		await chrome.storage.sync.set({ airtableAccessToken: token });
+		// fallback to .sf.gov domain if not found
+		if (cookies.length === 0) {
+			cookies = await chrome.cookies.getAll({
+				domain: ".sf.gov",
+				name: "sessionid",
+			});
+		}
+
+		if (cookies.length > 0) {
+			console.log("Found Wagtail session cookie:", cookies[0].domain);
+			return cookies[0].value;
+		}
+
+		console.log("No Wagtail session cookie found");
+		return null;
 	} catch (error) {
-		console.error("Failed to store Airtable access token:", error);
-		throw new Error("Failed to save access token");
+		console.error("Failed to retrieve Wagtail session cookie:", error);
+		return null;
 	}
 }
 
@@ -124,7 +131,7 @@ export function normalizePath(path: string): string {
 }
 
 /**
- * Fetches feedback records for a given page path
+ * Fetches feedback records for a given page path via the API proxy
  * @param path - The page path to fetch feedback for
  * @returns Promise resolving to an array of FeedbackRecord objects
  * @throws AirtableApiError for authentication, network, or server errors
@@ -133,53 +140,51 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 	const normalizedPath = normalizePath(path);
 	const cacheKey = `feedback:${normalizedPath}`;
 
-	// Check cache first
+	// check cache first
 	const cached = feedbackCache.get(cacheKey);
 	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
 		console.log("Returning cached feedback for:", normalizedPath);
 		return cached.data;
 	}
 
-	// Get access token
-	const token = await getAccessToken();
-	if (!token) {
-		throw createApiError("auth", "No Airtable access token configured");
+	// get Wagtail session ID from cookies
+	const sessionId = await getWagtailSessionId();
+	if (!sessionId) {
+		throw createApiError(
+			"auth",
+			"Not authenticated. Please log in to Wagtail admin at sf.gov."
+		);
 	}
 
-	// Construct API URL with filter formula
-	const encodedTableName = encodeURIComponent(TABLE_NAME);
-	const baseUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodedTableName}`;
+	// construct proxy API URL with page path
+	const url = new URL(API_PROXY_URL);
+	url.searchParams.set("pagePath", normalizedPath);
 
-	// Create filter formula for path matching
-	// Handle homepage special case: match "/" or empty string
-	const filterFormula =
-		normalizedPath === "/"
-			? "OR(LOWER({referrer})='/', {referrer}='')"
-			: `LOWER({referrer})='${normalizedPath}'`;
-
-	const url = new URL(baseUrl);
-	url.searchParams.set("filterByFormula", filterFormula);
-	url.searchParams.set("sort[0][field]", "submission_created");
-	url.searchParams.set("sort[0][direction]", "desc");
-	url.searchParams.set("maxRecords", "5");
-
-	console.log("Fetching feedback from Airtable:", url.toString());
+	console.log("Fetching feedback from proxy:", url.toString());
 
 	try {
 		const response = await fetchWithTimeout(
 			url.toString(),
 			{
 				headers: {
-					Authorization: `Bearer ${token}`,
+					"X-Wagtail-Session": sessionId,
 				},
 			}
 		);
 
-		// Handle HTTP error status codes
-		if (response.status === 401 || response.status === 403) {
+		// handle HTTP error status codes
+		if (response.status === 401) {
 			throw createApiError(
 				"auth",
-				"Invalid Airtable access token. Please check your configuration.",
+				"Invalid or expired session. Please log in to Wagtail admin.",
+				response.status
+			);
+		}
+
+		if (response.status === 403) {
+			throw createApiError(
+				"auth",
+				"Access denied. Please check your permissions.",
 				response.status
 			);
 		}
@@ -195,7 +200,7 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 		if (response.status >= 500) {
 			throw createApiError(
 				"server_error",
-				"Airtable server error. Please try again later.",
+				"Server error. Please try again later.",
 				response.status
 			);
 		}
@@ -208,47 +213,35 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 			);
 		}
 
-		const data: AirtableResponse = await response.json();
+		const data: ProxyResponse = await response.json();
 
-		// Transform API response to FeedbackRecord array
-		const feedbackRecords: FeedbackRecord[] = data.records.map((record) => ({
-			id: record.id,
-			submissionId: record.fields.submission_id,
-			submissionCreated: record.fields.submission_created,
-			referrer: record.fields.referrer,
-			wasHelpful: record.fields.wasTheLastPageYouViewedHelpful || null,
-			issueCategory: record.fields.whatWasWrongWithThePage1 || null,
-			whatWasHelpful: record.fields.whatWasHelpful || null,
-			additionalDetails: record.fields.shareMoreDetails || null,
-		}));
-
-		// Cache the results
+		// cache the results
 		feedbackCache.set(cacheKey, {
-			data: feedbackRecords,
+			data: data.records,
 			timestamp: Date.now(),
 		});
 
-		return feedbackRecords;
+		return data.records;
 	} catch (error) {
-		// Re-throw AirtableApiError as-is
+		// re-throw AirtableApiError as-is
 		if (isAirtableApiError(error)) {
 			throw error;
 		}
 
-		// Handle timeout errors
+		// handle timeout errors
 		if (error instanceof Error && error.message === "Request timed out") {
 			throw createApiError("timeout", "Request timed out. Please try again.");
 		}
 
-		// Handle network errors
+		// handle network errors
 		if (error instanceof TypeError) {
 			throw createApiError(
 				"network",
-				"Unable to connect to Airtable. Check your network connection."
+				"Unable to connect to API. Check your network connection."
 			);
 		}
 
-		// Handle unexpected errors
+		// handle unexpected errors
 		throw createApiError("network", "An unexpected error occurred");
 	}
 }

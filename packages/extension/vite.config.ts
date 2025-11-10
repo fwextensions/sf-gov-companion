@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 import zip from 'vite-plugin-zip-pack'
 import tailwindcss from '@tailwindcss/vite'
 import manifest from './manifest.config.js'
-import { name, version } from './package.json'
+import { version } from './package.json'
 
 export default defineConfig({
 	resolve: {
@@ -17,7 +17,7 @@ export default defineConfig({
 		react(),
 		tailwindcss(),
 		crx({ manifest }),
-		zip({ outDir: 'release', outFileName: `${name}-${version}.zip` }),
+		zip({ outDir: 'release', outFileName: `sf-gov-companion-${version}.zip` }),
 	],
 	server: {
 		cors: {

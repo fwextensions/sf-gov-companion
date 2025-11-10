@@ -79,19 +79,28 @@ async function checkRateLimit(identifier: string): Promise<boolean> {
 }
 
 /**
- * Validates Wagtail session by making a request to the Wagtail API
+ * Validates Wagtail session by making a request to the Wagtail admin
  */
 async function validateWagtailSession(sessionId: string, wagtailApiUrl: string): Promise<boolean> {
 	try {
-		const response = await fetch(`${wagtailApiUrl}/pages/`, {
+		// remove trailing slash from URL if present
+		const baseUrl = wagtailApiUrl.replace(/\/$/, "");
+		const validationUrl = `${baseUrl}/pages`;
+		
+		console.log(`Validating session with Wagtail admin: ${validationUrl}`);
+		const response = await fetch(validationUrl, {
 			method: "GET",
 			headers: {
 				"Cookie": `sessionid=${sessionId}`,
 			},
+			redirect: "manual", // don't follow redirects
 			signal: AbortSignal.timeout(5000), // 5 second timeout
 		});
 
-		return response.ok;
+		console.log(`Wagtail session validation response: ${response.status} ${response.statusText}`);
+		
+		// consider 200 OK and 3xx redirects as valid (logged in users get redirected)
+		return response.ok || (response.status >= 300 && response.status < 400);
 	} catch (error) {
 		console.error("Wagtail session validation failed:", error);
 		return false;
@@ -204,28 +213,34 @@ async function fetchAirtableFeedback(
  * Main handler for the Airtable proxy serverless function
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-	// Set CORS headers
 	const origin = req.headers.origin as string | undefined;
 	
-	if (origin && validateOrigin(origin)) {
+	// validate origin first
+	const isValidOrigin = validateOrigin(origin);
+	
+	// set CORS headers for valid origins
+	if (isValidOrigin && origin) {
 		res.setHeader("Access-Control-Allow-Origin", origin);
 		res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
 		res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Wagtail-Session");
 		res.setHeader("Access-Control-Max-Age", "86400"); // 24 hours
 	}
 
-	// Handle preflight requests
+	// handle preflight requests
 	if (req.method === "OPTIONS") {
+		if (!isValidOrigin) {
+			return res.status(403).json({ error: "Invalid origin" });
+		}
 		return res.status(200).end();
 	}
 
-	// Only allow GET requests
+	// only allow GET requests
 	if (req.method !== "GET") {
 		return res.status(405).json({ error: "Method not allowed" });
 	}
 
-	// Validate origin
-	if (!validateOrigin(origin)) {
+	// validate origin for actual requests
+	if (!isValidOrigin) {
 		return res.status(403).json({ error: "Invalid origin" });
 	}
 

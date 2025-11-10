@@ -17,6 +17,7 @@ export default defineManifest({
 		"tabs",
 		"storage",
 		"scripting",
+		"cookies",
 	],
 	host_permissions: [
 		"*://*.sf.gov/*",

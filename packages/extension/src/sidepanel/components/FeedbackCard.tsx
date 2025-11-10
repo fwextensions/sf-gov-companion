@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "./Card";
 import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
-import { getFeedbackByPath, getAccessToken, setAccessToken, clearCache } from "@/api/airtable-client";
+import { getFeedbackByPath, clearCache } from "@/api/airtable-client";
 
 interface FeedbackCardProps {
 	pagePath: string;
@@ -91,9 +91,6 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
 	const [error, setError] = useState<AirtableApiError | null>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
-	const [hasToken, setHasToken] = useState<boolean>(false);
-	const [tokenInput, setTokenInput] = useState<string>("");
-	const [isSavingToken, setIsSavingToken] = useState<boolean>(false);
 
 	// fetch feedback when pagePath changes
 	useEffect(() => {
@@ -105,16 +102,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 		setError(null);
 
 		try {
-			// check if token exists
-			const token = await getAccessToken();
-			setHasToken(!!token);
-
-			if (!token) {
-				setIsLoading(false);
-				return;
-			}
-
-			// fetch feedback
+			// fetch feedback via proxy (uses Wagtail session cookie)
 			const records = await getFeedbackByPath(pagePath);
 			setFeedback(records);
 		} catch (err) {
@@ -130,25 +118,6 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 		loadFeedback();
 	};
 
-	const handleSaveToken = async () => {
-		if (!tokenInput.trim()) {
-			return;
-		}
-
-		setIsSavingToken(true);
-		try {
-			await setAccessToken(tokenInput);
-			setHasToken(true);
-			setTokenInput("");
-			// reload feedback after saving token
-			loadFeedback();
-		} catch (err) {
-			console.error("Failed to save token:", err);
-		} finally {
-			setIsSavingToken(false);
-		}
-	};
-
 	// loading state
 	if (isLoading) {
 		return (
@@ -160,43 +129,31 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 		);
 	}
 
-	// no token configured
-	if (!hasToken) {
-		return (
-			<Card title="User Feedback">
-				<div className="space-y-3">
-					<p className="text-sm text-gray-600">
-						Enter your Airtable Personal Access Token to view user feedback.
-					</p>
-					<input
-						type="password"
-						value={tokenInput}
-						onChange={(e) => setTokenInput(e.target.value)}
-						placeholder="pat..."
-						className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-					/>
-					<button
-						onClick={handleSaveToken}
-						disabled={!tokenInput.trim() || isSavingToken}
-						className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
-					>
-						{isSavingToken ? "Saving..." : "Save Token"}
-					</button>
-				</div>
-			</Card>
-		);
-	}
-
 	// error state
 	if (error) {
 		return (
 			<Card title="User Feedback">
-				<div className="text-sm text-red-600">
-					<p>{error.message}</p>
+				<div className="space-y-3">
+					<div className="text-sm text-red-600">
+						<p className="font-medium">{error.message}</p>
+					</div>
+					{error.type === "auth" && (
+						<div className="text-sm text-gray-600">
+							<p>To view user feedback, you need to be logged in to the Wagtail admin.</p>
+							<a
+								href="https://sf.gov/admin/"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-blue-600 hover:underline"
+							>
+								Log in to Wagtail admin →
+							</a>
+						</div>
+					)}
 					{error.retryable && (
 						<button
 							onClick={handleRetry}
-							className="mt-2 text-blue-600 hover:underline"
+							className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
 						>
 							Retry
 						</button>

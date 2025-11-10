@@ -119,12 +119,12 @@
 
 
 
-  - Create packages/api directory structure
-  - Create packages/api/api/ directory for serverless functions
-  - Create packages/api/lib/ directory for utilities
-  - Create packages/api/package.json with dependencies
-  - Create packages/api/tsconfig.json extending root config
-  - Create packages/api/vercel.json for Vercel configuration
+  - Create packages/server directory structure
+  - Create packages/server/api/ directory for serverless functions
+  - Create packages/server/lib/ directory for utilities
+  - Create packages/server/package.json with dependencies
+  - Create packages/server/tsconfig.json extending root config
+  - Create packages/server/vercel.json for Vercel configuration
   - _Requirements: 1.3, 3.3, 4.3_
 
 
@@ -132,7 +132,7 @@
 
 
 
-  - Create packages/api/api/airtable-proxy.ts
+  - Create packages/server/api/airtable-proxy.ts
   - Implement session validation logic using Wagtail API
   - Implement Vercel KV caching for session validation
   - Implement rate limiting using Vercel KV
@@ -154,7 +154,16 @@
   - Verify environment variables are properly configured
   - _Requirements: 3.3, 5.1, 5.3, 5.4, 6.2_
 
-- [ ] 13. Update extension to use API proxy
+- [x] 13. Update extension to use API proxy
+
+
+
+
+
+
+
+
+
   - Update packages/extension/src/api/airtable-client.ts to call proxy endpoint
   - Implement cookie reading logic using chrome.cookies API
   - Add error handling for authentication failures
@@ -162,7 +171,15 @@
   - Add manifest permissions for cookies
   - _Requirements: 8.3_
 
-- [ ] 14. Update documentation
+
+
+
+
+- [x] 14. Update documentation
+
+
+
+
   - Update root README.md with monorepo structure overview
   - Document workspace-specific commands (dev:extension, dev:api, etc.)
   - Document how to add dependencies to specific workspaces
