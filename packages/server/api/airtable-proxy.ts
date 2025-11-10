@@ -92,6 +92,8 @@ async function validateWagtailSession(sessionId: string, wagtailApiUrl: string):
 			method: "GET",
 			headers: {
 				"Cookie": `sessionid=${sessionId}`,
+				"User-Agent": "SF-Gov-Companion-Extension/1.0",
+				"X-SF-Gov-Extension": "companion",
 			},
 			redirect: "manual", // don't follow redirects
 			signal: AbortSignal.timeout(5000), // 5 second timeout
@@ -222,7 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 	if (isValidOrigin && origin) {
 		res.setHeader("Access-Control-Allow-Origin", origin);
 		res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-		res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Wagtail-Session");
+		res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Wagtail-Session, X-SF-Gov-Extension");
 		res.setHeader("Access-Control-Max-Age", "86400"); // 24 hours
 	}
 

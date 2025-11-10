@@ -168,6 +168,7 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 			{
 				headers: {
 					"X-Wagtail-Session": sessionId,
+					"X-SF-Gov-Extension": "companion",
 				},
 			}
 		);

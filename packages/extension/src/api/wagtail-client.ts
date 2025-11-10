@@ -27,7 +27,13 @@ async function fetchWithTimeout(url: string, timeout: number = DEFAULT_TIMEOUT):
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "SF-Gov-Companion-Extension/1.0",
+        "X-SF-Gov-Extension": "companion",
+      },
+    });
     clearTimeout(timeoutId);
     return response;
   } catch (error) {
