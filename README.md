@@ -257,6 +257,22 @@ Each workspace extends the root `tsconfig.json` for consistent configuration.
 ### Shared
 - **TypeScript 5.9**: Type definitions only
 
+## Extension Identification Headers
+
+All requests to `api.sf.gov` include custom headers for logging and tracking:
+
+```
+User-Agent: SF-Gov-Companion-Extension/1.0
+X-SF-Gov-Extension: companion
+```
+
+These headers are sent in:
+- **Extension → api.sf.gov**: Direct Wagtail API calls for page data
+- **Proxy → api.sf.gov**: Session validation requests
+- **Extension → Proxy**: Airtable feedback requests
+
+Server administrators can filter logs using these headers to identify extension traffic.
+
 ## Requirements
 
 See `.kiro/specs/monorepo-conversion/requirements.md` for detailed monorepo requirements.
