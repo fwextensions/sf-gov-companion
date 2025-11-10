@@ -3,6 +3,7 @@ import { Redis } from "@upstash/redis";
 import type { AirtableResponse, FeedbackRecord } from "@sf-gov/shared";
 
 // initialize Upstash Redis client
+// Reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from process.env
 const redis = Redis.fromEnv();
 
 // parse optional environment variables with defaults

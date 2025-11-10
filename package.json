@@ -7,7 +7,7 @@
 	"scripts": {
 		"dev": "npm run dev --workspaces --if-present",
 		"dev:extension": "npm run dev --workspace=@sf-gov/extension",
-		"dev:server": "npx vercel dev --listen 3001",
+		"dev:server": "npx vercel dev",
 		"postinstall": "patch-package",
 		"build": "npm run build --workspaces --if-present",
 		"build:extension": "npm run build --workspace=@sf-gov/extension",

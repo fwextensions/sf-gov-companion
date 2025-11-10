@@ -1,91 +1,98 @@
-# Implementation Plan
+# Implementation Plan: Migrate from Vercel KV to Upstash Redis
 
-- [x] 1. Add environment variable configuration for cache settings
+## Overview
+This plan migrates the existing Vercel KV implementation to Upstash Redis. The current implementation already has session caching, rate limiting, logging, and error handling in place using `@vercel/kv`. We need to replace it with `@upstash/redis`.
 
+## Tasks
 
-
-
-
-	- Add `SESSION_CACHE_TTL` and `WAGTAIL_VALIDATION_TIMEOUT` as optional environment variables with default values
-	- Parse environment variables at the top of the proxy handler file
-	- Update the ProxyEnv interface to include optional cache configuration fields
-	- _Requirements: 4.2, 4.3_
-
-
-- [x] 2. Enhance session validation caching with comprehensive logging
+- [x] 1. Install Upstash Redis SDK and update dependencies
 
 
 
 
-	- [x] 2.1 Add cache hit logging with performance timing
 
-		- Measure duration of cache read operation
-		- Log cache hits with truncated session ID and duration
-		- _Requirements: 5.1, 5.5_
+	- Install `@upstash/redis` package in the server workspace
+	- Remove `@vercel/kv` dependency from package.json
+	- Update package-lock.json by running npm install
+	- _Requirements: 4.3_
+
+- [x] 2. Replace Vercel KV imports with Upstash Redis
+
+
+
+
+	- Replace `import { kv } from "@vercel/kv"` with `import { Redis } from "@upstash/redis"`
+	- Initialize Redis client using `const redis = Redis.fromEnv()` at the top of the file
+	- Update all references from `kv` to `redis` throughout the file
+	- _Requirements: 4.3_
+
+- [x] 3. Update Redis API method calls for compatibility
+
+
+
+
+
+	- [x] 3.1 Update session cache read operation
+
+		- Change `kv.get<boolean>(cacheKey)` to `redis.get<boolean>(cacheKey)`
+		- Verify the return type and null handling remain the same
+		- _Requirements: 1.3, 4.1_
 	
 
-	- [ ] 2.2 Add cache miss logging with validation tracking
-		- Log cache misses before initiating Wagtail validation
-		- Include truncated session ID in log message
-		- _Requirements: 5.2_
 
+	- [x] 3.2 Update session cache write operation
+
+		- Change `kv.setex(cacheKey, SESSION_CACHE_TTL, true)` to `redis.set(cacheKey, true, { ex: SESSION_CACHE_TTL })`
+		- Verify TTL is set correctly using the `ex` option (seconds)
+
+		- _Requirements: 1.4, 3.1, 4.2_
 	
-	- [ ] 2.3 Add cache write logging with success confirmation
-		- Log successful cache writes after validation
-		- Include truncated session ID and operation duration
+	- [x] 3.3 Update rate limiting operations
 
-		- _Requirements: 5.3_
-	
-	- [ ] 2.4 Add error logging for KV operation failures
-		- Wrap all KV operations in try-catch blocks
-		- Log error type and message for debugging
-		- Include operation context (read/write) in error logs
-		- _Requirements: 2.5, 5.4_
+		- Change `kv.incr(key)` to `redis.incr(key)`
+		- Change `kv.expire(key, window)` to `redis.expire(key, window)`
+		- Verify rate limiting logic continues to work correctly
+		- _Requirements: 2.1, 2.2_
 
-- [x] 3. Implement graceful fallback for KV failures
+- [x] 4. Update environment variable references in ProxyEnv interface
 
 
 
 
-- [-] 3. Implement graceful fallback for KV failures
+	- Verify `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are not required in ProxyEnv (automatically read by Redis.fromEnv())
+	- Keep existing `SESSION_CACHE_TTL` and `WAGTAIL_VALIDATION_TIMEOUT` optional fields
+	- Update comments to reference Upstash Redis instead of Vercel KV
+	- _Requirements: 4.2_
 
-	- [x] 3.1 Add fallback logic for cache read failures
-
-		- Catch KV read errors and log them
-		- Fall back to direct Wagtail validation when cache read fails
-		- Ensure request continues successfully despite cache failure
-		- _Requirements: 2.1, 2.2, 2.4_
-	
-
-	- [x] 3.2 Add fallback logic for cache write failures
-
-		- Catch KV write errors and log them
-		- Continue processing request even if cache write fails
-		- Ensure response is returned successfully
-		- _Requirements: 2.3, 2.4_
 -
 
-- [x] 4. Update cache key format and TTL management
+- [x] 5. Update error messages and logging references
+
+
+
+	- Update error log messages to reference "Redis" instead of "KV"
+	- Update comments in `checkRateLimit` function to reference Redis
+	- Update comments in `validateSessionWithCache` function to reference Upstash Redis
+	- Ensure all log messages are consistent with the new Redis implementation
+	- _Requirements: 2.5, 5.4_
+
+- [x] 6. Test the migration locally with Upstash credentials
 
 
 
 
-	- Verify cache key format follows "session:{sessionId}" pattern
-	- Use environment variable for cache TTL instead of hardcoded value
-	- Ensure invalid sessions are not cached
-	- Verify cache entries expire after configured TTL
-	- _Requirements: 3.1, 3.2, 3.4, 3.5, 4.1, 4.2_
 
-- [ ] 5. Add performance monitoring instrumentation
-	- Add timing measurements for cache operations (read/write)
-	- Add timing measurements for Wagtail validation requests
-	- Include duration in all relevant log messages
-	- Format durations consistently (milliseconds with "ms" suffix)
-	- _Requirements: 5.5_
 
-- [ ] 6. Update documentation and environment variable examples
-	- Add `SESSION_CACHE_TTL` and `WAGTAIL_VALIDATION_TIMEOUT` to .env.example file in server package
-	- Document the new environment variables in the README
-	- Include default values and acceptable ranges in documentation
-	- Add comments explaining the purpose of each variable
-	- _Requirements: 4.2_
+	- Run `vercel env pull .env.development.local` to get Upstash credentials
+	- Start the development server with `vercel dev`
+	- Test session validation caching with the extension
+	- Verify rate limiting still works correctly
+	- Check logs for proper cache hit/miss messages
+	- _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2_
+
+- [ ] 7. Update documentation to reflect Upstash Redis usage
+	- Update any inline comments referencing Vercel KV
+	- Update README if it mentions the caching implementation
+	- Add notes about Upstash Redis setup requirements
+	- Document the environment variables needed (automatically set by Vercel)
+	- _Requirements: 4.2, 4.5_

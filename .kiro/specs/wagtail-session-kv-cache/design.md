@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design extends the existing Vercel KV caching infrastructure in the Airtable proxy endpoint to cache Wagtail session validation results. The current implementation already includes a `validateSessionWithCache` function that performs session validation caching, but this design document formalizes the approach and ensures all requirements are met with proper error handling, logging, and observability.
+This design implements Redis caching infrastructure using Upstash Redis in the Airtable proxy endpoint to cache Wagtail session validation results. The implementation uses the `@upstash/redis` SDK to interact with an Upstash Redis database provisioned through the Vercel Marketplace.
 
 The caching layer sits between the proxy endpoint's authentication logic and the Wagtail admin validation, reducing latency and server load by avoiding redundant HTTP requests for recently validated sessions.
 
@@ -12,16 +12,17 @@ The caching layer sits between the proxy endpoint's authentication logic and the
 
 The Airtable proxy endpoint (`packages/server/api/airtable-proxy.ts`) currently implements:
 - Session validation via HTTP requests to Wagtail admin
-- Basic KV caching with a 5-minute TTL
-- Fallback to direct validation on cache failures
-- Rate limiting using Vercel KV
+- No caching infrastructure (needs to be added)
 
-### Proposed Enhancements
+### Proposed Implementation
 
-The design enhances the existing implementation with:
+The design implements Redis caching with:
+- Upstash Redis client initialization using `Redis.fromEnv()`
+- Session validation caching with a 5-minute TTL
 - Comprehensive logging for cache operations (hits, misses, errors)
 - Performance monitoring with operation duration tracking
-- Explicit error handling for all KV operations
+- Explicit error handling for all Redis operations
+- Fallback to direct validation on cache failures
 - Consistent cache key formatting
 - Named constants for configuration values
 
@@ -34,9 +35,7 @@ Proxy Endpoint
     ↓
 Origin Validation
     ↓
-Rate Limit Check (KV)
-    ↓
-Session Validation with Cache
+Session Validation with Cache (Upstash Redis)
     ├─→ Cache Hit → Return cached result
     └─→ Cache Miss → Validate with Wagtail
                    → Cache result (if valid)
@@ -58,12 +57,14 @@ The proxy endpoint requires the following environment variables:
 - `AIRTABLE_API_KEY`: API key for Airtable access
 - `AIRTABLE_BASE_ID`: Airtable base identifier
 - `AIRTABLE_TABLE_NAME`: Name of the feedback table
+- `UPSTASH_REDIS_REST_URL`: Upstash Redis REST API URL (automatically set by Vercel when Upstash is connected)
+- `UPSTASH_REDIS_REST_TOKEN`: Upstash Redis REST API token (automatically set by Vercel when Upstash is connected)
 
 **Optional (with defaults):**
 - `SESSION_CACHE_TTL`: Cache TTL in seconds (default: `300`)
 - `WAGTAIL_VALIDATION_TIMEOUT`: Validation timeout in milliseconds (default: `5000`)
 
-The optional variables allow operators to tune cache behavior and timeout values without code changes.
+The Upstash environment variables are automatically injected by Vercel when the Upstash Redis integration is connected to the project. The optional variables allow operators to tune cache behavior and timeout values without code changes.
 
 ### Cache Key Format
 
@@ -91,9 +92,21 @@ These environment variables:
 - Provide sensible defaults if not configured
 - Improve operational flexibility
 
-### Enhanced validateSessionWithCache Function
+### Redis Client Initialization
 
-The function signature remains unchanged but includes enhanced logging:
+Initialize the Upstash Redis client at the top of the proxy handler file:
+
+```typescript
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
+```
+
+The `Redis.fromEnv()` method automatically reads the `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` environment variables.
+
+### validateSessionWithCache Function
+
+The function implements session validation with Redis caching:
 
 ```typescript
 async function validateSessionWithCache(
@@ -104,10 +117,10 @@ async function validateSessionWithCache(
 
 **Behavior:**
 1. Generate cache key from session ID
-2. Attempt to read from KV cache
+2. Attempt to read from Redis cache
 3. On cache hit: Log hit and return cached value
 4. On cache miss: Log miss, validate with Wagtail, cache result (if valid), return result
-5. On KV error: Log error, fall back to direct validation
+5. On Redis error: Log error, fall back to direct validation
 
 ### Logging Interface
 
@@ -135,33 +148,35 @@ Example log outputs:
 ```typescript
 interface SessionCacheEntry {
   value: boolean; // true if session is valid
-  // TTL is managed by KV, not stored in the entry
+  // TTL is managed by Redis, not stored in the entry
 }
 ```
 
 The cache stores a simple boolean value indicating session validity. Invalid sessions are not cached, so the presence of a cache entry implies validity.
 
-### KV Operations
+### Redis Operations
 
 ```typescript
 // Read operation
-const cached = await kv.get<boolean>(cacheKey);
+const cached = await redis.get<boolean>(cacheKey);
 
-// Write operation with TTL
-await kv.setex(cacheKey, SESSION_CACHE_TTL, true);
+// Write operation with TTL (EX = seconds)
+await redis.set(cacheKey, true, { ex: SESSION_CACHE_TTL });
 
 // No explicit delete operation needed (TTL handles expiration)
 ```
 
+The Upstash Redis SDK provides a REST-based API that works seamlessly in serverless environments without persistent connections.
+
 ## Error Handling
 
-### KV Operation Failures
+### Redis Operation Failures
 
-All KV operations are wrapped in try-catch blocks:
+All Redis operations are wrapped in try-catch blocks:
 
 ```typescript
 try {
-  const cached = await kv.get<boolean>(cacheKey);
+  const cached = await redis.get<boolean>(cacheKey);
   // ... use cached value
 } catch (error) {
   console.error("Session cache read failed:", error);
@@ -191,7 +206,7 @@ If the timeout is exceeded, the validation fails and returns false.
 ### Graceful Degradation
 
 The system degrades gracefully:
-1. **KV Unavailable**: Direct validation (slower but functional)
+1. **Redis Unavailable**: Direct validation (slower but functional)
 2. **Wagtail Unavailable**: Return 401 (expected behavior)
 3. **Both Unavailable**: Return 401 (cannot validate)
 
@@ -201,10 +216,10 @@ The system degrades gracefully:
 
 Test the `validateSessionWithCache` function in isolation:
 
-1. **Cache Hit Test**: Mock KV to return cached value, verify no Wagtail request
-2. **Cache Miss Test**: Mock KV to return null, verify Wagtail request and cache write
-3. **KV Read Error Test**: Mock KV to throw error, verify fallback to direct validation
-4. **KV Write Error Test**: Mock KV write to throw error, verify request still succeeds
+1. **Cache Hit Test**: Mock Redis to return cached value, verify no Wagtail request
+2. **Cache Miss Test**: Mock Redis to return null, verify Wagtail request and cache write
+3. **Redis Read Error Test**: Mock Redis to throw error, verify fallback to direct validation
+4. **Redis Write Error Test**: Mock Redis write to throw error, verify request still succeeds
 5. **Invalid Session Test**: Mock Wagtail to return 401, verify no cache write
 
 ### Integration Testing Approach
@@ -227,8 +242,8 @@ Test the full proxy endpoint flow:
 
 ### Expected Performance Improvements
 
-- **Cache Hit Latency**: ~10-50ms (KV read)
-- **Cache Miss Latency**: ~200-500ms (Wagtail validation + KV write)
+- **Cache Hit Latency**: ~10-50ms (Redis read via REST API)
+- **Cache Miss Latency**: ~200-500ms (Wagtail validation + Redis write)
 - **Improvement**: 4-10x faster for cached sessions
 
 ### Cache Hit Rate Estimation
@@ -279,9 +294,9 @@ This prevents cache-based rate limit bypass.
 ### Key Metrics to Monitor
 
 1. **Cache Hit Rate**: Percentage of requests served from cache
-2. **Cache Operation Duration**: Time spent on KV reads/writes
+2. **Cache Operation Duration**: Time spent on Redis reads/writes
 3. **Validation Duration**: Time spent on Wagtail HTTP requests
-4. **Error Rate**: Frequency of KV operation failures
+4. **Error Rate**: Frequency of Redis operation failures
 
 ### Log Analysis Queries
 
@@ -291,7 +306,7 @@ Example queries for Vercel logs:
 // Cache hit rate
 "Session cache hit" OR "Session cache miss"
 
-// KV errors
+// Redis errors
 "Session cache error" OR "cache check failed"
 
 // Slow validations
@@ -301,87 +316,97 @@ Example queries for Vercel logs:
 ### Alerting Thresholds
 
 Recommended alerts:
-- **KV Error Rate > 5%**: Investigate KV service health
+- **Redis Error Rate > 5%**: Investigate Upstash Redis service health
 - **Cache Hit Rate < 50%**: Review TTL configuration
 - **Validation Duration > 2s**: Check Wagtail server performance
 
-## Vercel KV Setup
+## Upstash Redis Setup
 
 ### Prerequisites
 
-Vercel KV must be provisioned and connected to your Vercel project before the caching functionality will work.
+Upstash Redis must be provisioned and connected to your Vercel project before the caching functionality will work.
 
 ### Setup Steps
 
-1. **Create a Vercel KV Database**
+1. **Connect Upstash Redis via Vercel Marketplace**
    - Navigate to your Vercel project dashboard
    - Go to the "Storage" tab
+   - Click "Create Database" or "Browse Marketplace"
+   - Select "Upstash Redis" from the Marketplace integrations
+   - Click "Add Integration" or "Connect"
+   - Follow the prompts to authorize Upstash with your Vercel account
+
+2. **Create an Upstash Redis Database**
+   - After connecting the integration, you'll be redirected to Upstash
    - Click "Create Database"
-   - Select "KV" (Redis-compatible key-value store)
    - Choose a database name (e.g., "sf-gov-cache")
-   - Select a region (choose closest to your serverless functions)
+   - Select a region (choose closest to your Vercel deployment region for lowest latency)
+   - Select a plan (Free tier is sufficient for this use case)
    - Click "Create"
 
-2. **Connect KV to Your Project**
-   - After creation, Vercel will prompt you to connect the database
+3. **Connect Database to Your Vercel Project**
+   - Upstash will prompt you to connect the database to your Vercel project
    - Select your project from the list
    - Choose the environment(s) to connect (Production, Preview, Development)
    - Click "Connect"
 
-3. **Verify Environment Variables**
-   - Vercel automatically adds KV connection variables to your project:
-     - `KV_REST_API_URL`
-     - `KV_REST_API_TOKEN`
-     - `KV_REST_API_READ_ONLY_TOKEN`
+4. **Verify Environment Variables**
+   - Vercel automatically adds Upstash connection variables to your project:
+     - `UPSTASH_REDIS_REST_URL`
+     - `UPSTASH_REDIS_REST_TOKEN`
    - These are injected automatically at runtime (no manual configuration needed)
    - Verify in Project Settings → Environment Variables
 
-4. **Install @vercel/kv Package**
-   - The package is already installed in `packages/server/package.json`
-   - If not present, run: `npm install @vercel/kv --workspace=@sf-gov/server`
+5. **Install @upstash/redis Package**
+   - Install the Upstash Redis SDK in the server workspace:
+   ```bash
+   npm install @upstash/redis --workspace=@sf-gov/server
+   ```
 
-5. **Deploy to Vercel**
+6. **Deploy to Vercel**
    - Push your code to trigger a deployment
-   - Vercel will automatically inject KV credentials
-   - The proxy endpoint will have access to `kv` from `@vercel/kv`
+   - Vercel will automatically inject Upstash credentials
+   - The proxy endpoint will have access to Redis via `Redis.fromEnv()`
 
 ### Local Development
 
-For local testing with KV:
+For local testing with Upstash Redis:
 
 1. **Pull Environment Variables**
    ```bash
-   cd packages/server
-   vercel env pull .env.local
+   vercel env pull .env.development.local
    ```
-   This downloads KV credentials to `.env.local`
+   This downloads Upstash credentials to `.env.development.local` in your project root
 
 2. **Run Development Server**
    ```bash
    vercel dev
    ```
-   The `vercel dev` command automatically loads KV credentials
+   The `vercel dev` command automatically loads Upstash credentials from environment variables
 
-**Note**: Standard `npm run dev` will not have KV access locally. Use `vercel dev` for full KV functionality during development.
+**Note**: Standard `npm run dev` will not have Upstash access locally unless you manually copy the environment variables. Use `vercel dev` for full Redis functionality during development.
 
 ### Cost Considerations
 
-Vercel KV pricing (as of 2024):
-- **Hobby Plan**: 256 MB storage, 3,000 commands/day (free)
-- **Pro Plan**: 512 MB storage, 10,000 commands/day (included)
-- **Enterprise**: Custom limits
+Upstash Redis pricing (as of 2024):
+- **Free Tier**: 10,000 commands/day, 256 MB storage, global replication
+- **Pay-as-you-go**: $0.2 per 100K commands
+- **Pro Plans**: Starting at $280/month for higher limits
 
 For this use case:
 - Each cache entry: ~71 bytes
 - Expected usage: ~1,000-5,000 commands/day (well within free tier)
 - Storage: <1 MB for typical usage
+- **Recommendation**: Free tier is sufficient
 
-### Monitoring KV Usage
+### Monitoring Upstash Usage
 
-Monitor KV usage in Vercel dashboard:
-- Navigate to Storage → Your KV Database
-- View metrics: Commands/day, Storage used, Response time
+Monitor Redis usage in Upstash dashboard:
+- Navigate to console.upstash.com
+- Select your database
+- View metrics: Commands/day, Storage used, Response time, Hit rate
 - Set up alerts for approaching limits
+- Access detailed logs and analytics
 
 ## Migration and Rollout
 
@@ -394,18 +419,19 @@ The feature is already partially implemented. Enhancements include:
 4. Update error messages for clarity
 
 **Deployment Steps:**
-1. Ensure Vercel KV is provisioned and connected (see "Vercel KV Setup" above)
-2. Deploy code changes to Vercel
-3. Monitor logs for cache hit/miss messages
-4. Verify performance improvements in response times
+1. Ensure Upstash Redis is provisioned and connected (see "Upstash Redis Setup" above)
+2. Install `@upstash/redis` package in the server workspace
+3. Deploy code changes to Vercel
+4. Monitor logs for cache hit/miss messages
+5. Verify performance improvements in response times
 
 ### Rollback Plan
 
 If issues arise:
 1. Remove caching logic (revert to direct validation)
-2. Keep rate limiting intact (separate KV usage)
+2. Keep rate limiting intact (if using separate Redis database)
 3. Monitor error rates and latency
-4. KV database can remain provisioned (no cost impact if unused)
+4. Upstash database can remain provisioned (no cost impact on free tier if unused)
 
 ### Backward Compatibility
 
@@ -413,4 +439,4 @@ No breaking changes:
 - API interface remains unchanged
 - Extension code requires no updates
 - Existing sessions continue to work
-- If KV is not provisioned, code falls back to direct validation
+- If Upstash is not provisioned, code falls back to direct validation
