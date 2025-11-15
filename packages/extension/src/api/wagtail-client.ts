@@ -283,10 +283,12 @@ function extractImages(pageData: any): MediaAsset[] {
     if (obj.type === 'image' && obj.value) {
       const imageData = obj.value;
       if (imageData.id) {
+        console.log('Image data fields:', Object.keys(imageData));
+        console.log('Image data:', imageData);
         images.push({
           id: imageData.id,
           title: imageData.title || imageData.alt || '',
-          url: imageData.url || imageData.full_url || '',
+          url: imageData.url || imageData.full_url || imageData.meta?.download_url || imageData.src || '',
           type: 'image',
           filename: imageData.filename
         });
@@ -296,10 +298,12 @@ function extractImages(pageData: any): MediaAsset[] {
     // Check for image fields in the object
     if (obj.image && typeof obj.image === 'object') {
       if (obj.image.id) {
+        console.log('Image field data:', Object.keys(obj.image));
+        console.log('Image field:', obj.image);
         images.push({
           id: obj.image.id,
           title: obj.image.title || obj.image.alt || '',
-          url: obj.image.url || obj.image.full_url || '',
+          url: obj.image.url || obj.image.full_url || obj.image.meta?.download_url || obj.image.src || '',
           type: 'image',
           filename: obj.image.filename
         });

@@ -2,6 +2,7 @@ import React from 'react'
 import { Card } from './Card'
 import type { MediaAsset } from '@sf-gov/shared'
 import { EditIcon } from "@/sidepanel/components/EditIcon.tsx";
+import { OpenIcon } from "@/sidepanel/components/OpenIcon.tsx";
 
 interface MediaAssetsCardProps {
   images: MediaAsset[]
@@ -44,15 +45,29 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({ images, files 
           {hasImages ? (
             <ul className="space-y-2">
               {images.map((image) => (
-                <li key={image.id}>
+                <li key={image.id} className="flex items-start gap-2">
                   <button
                     onClick={() => handleImageClick(image.id)}
                     className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-2 cursor-pointer bg-transparent border-none p-0"
                     title="Edit image on Karl"
                   >
                     <EditIcon className="h-4 w-4" aria-hidden="true" />
-                    {image.title || image.filename || 'Untitled Image'}
+                    <span className="flex flex-col items-start">
+                      <span>{image.title || image.filename || 'Untitled Image'}</span>
+                      {image.filename && image.title && image.title !== image.filename && (
+                        <span className="text-xs text-gray-500">{image.filename}</span>
+                      )}
+                    </span>
                   </button>
+                  <a
+                    href={image.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-1 bg-blue-600 rounded-sm text-white opacity-70 hover:opacity-100 shrink-0 mt-0.5"
+                    title="Open original image in new tab"
+                  >
+                    <OpenIcon className="w-4 h-4" aria-hidden="true" />
+                  </a>
                 </li>
               ))}
             </ul>
@@ -74,21 +89,13 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({ images, files 
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-2"
                   >
-                    {file.title || file.filename || 'Untitled File'}
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
+                    <span className="flex flex-col items-start">
+                      <span>{file.title || file.filename || 'Untitled File'}</span>
+                      {file.filename && file.title && file.title !== file.filename && (
+                        <span className="text-xs text-gray-500">{file.filename}</span>
+                      )}
+                    </span>
+                    <OpenIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
                   </a>
                 </li>
               ))}

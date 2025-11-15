@@ -152,7 +152,7 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 	if (!sessionId) {
 		throw createApiError(
 			"auth",
-			"Not authenticated. Please log in to Wagtail admin at sf.gov."
+			"Not authenticated."
 		);
 	}
 
@@ -177,7 +177,7 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 		if (response.status === 401) {
 			throw createApiError(
 				"auth",
-				"Invalid or expired session. Please log in to Wagtail admin.",
+				"Invalid or expired session.",
 				response.status
 			);
 		}

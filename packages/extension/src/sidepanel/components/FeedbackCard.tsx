@@ -139,15 +139,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 					</div>
 					{error.type === "auth" && (
 						<div className="text-sm text-gray-600">
-							<p>To view user feedback, you need to be logged in to the Wagtail admin.</p>
-							<a
-								href="https://sf.gov/admin/"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-blue-600 hover:underline"
-							>
-								Log in to Wagtail admin →
-							</a>
+							<p>To view user feedback, you need to be logged in to Karl.</p>
 						</div>
 					)}
 					{error.retryable && (
