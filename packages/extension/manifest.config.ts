@@ -22,6 +22,7 @@ export default defineManifest({
 	host_permissions: [
 		"*://*.sf.gov/*",
 		"https://api.sf.gov/*",
+		"https://api.staging.dev.sf.gov/*",
 	],
 	background: {
 		service_worker: "src/background/service-worker.ts",
@@ -41,7 +42,10 @@ export default defineManifest({
 	},
 	content_scripts: [
 		{
-			matches: ["*://api.sf.gov/admin/*"],
+			matches: [
+				"*://api.sf.gov/admin/*",
+				"*://api.staging.dev.sf.gov/admin/*",
+			],
 			js: ["src/content/admin-preview-monitor.ts"],
 			run_at: "document_idle",
 		},

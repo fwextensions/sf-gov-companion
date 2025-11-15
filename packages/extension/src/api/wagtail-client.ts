@@ -6,9 +6,42 @@
 import type { WagtailPage, ApiError, MediaAsset, Translation } from '@sf-gov/shared';
 
 /**
- * Base URL for the Wagtail API
+ * Determines the appropriate API base URL based on the current page URL
+ * @param currentUrl - Optional current URL to determine which API to use
+ * @returns The base API URL (production or staging)
  */
-const BASE_API_URL = 'https://api.sf.gov/api/v2/';
+function getBaseApiUrl(currentUrl?: string): string {
+	if (currentUrl) {
+		try {
+			const urlObj = new URL(currentUrl);
+			if (urlObj.hostname.includes('staging.dev.sf.gov')) {
+				return 'https://api.staging.dev.sf.gov/api/v2/';
+			}
+		} catch (e) {
+			// invalid URL, fall through to default
+		}
+	}
+	return 'https://api.sf.gov/api/v2/';
+}
+
+/**
+ * Determines the appropriate admin base URL based on the current page URL
+ * @param currentUrl - Optional current URL to determine which admin to use
+ * @returns The admin base URL (production or staging)
+ */
+function getAdminBaseUrl(currentUrl?: string): string {
+	if (currentUrl) {
+		try {
+			const urlObj = new URL(currentUrl);
+			if (urlObj.hostname.includes('staging.dev.sf.gov')) {
+				return 'https://api.staging.dev.sf.gov/admin/';
+			}
+		} catch (e) {
+			// invalid URL, fall through to default
+		}
+	}
+	return 'https://api.sf.gov/admin/';
+}
 
 /**
  * Default timeout for API requests in milliseconds
@@ -50,12 +83,14 @@ async function fetchWithTimeout(url: string, timeout: number = DEFAULT_TIMEOUT):
 /**
  * Finds a Wagtail page by its ID
  * @param pageId - The page ID to fetch
+ * @param currentUrl - Optional current URL to determine which API to use
  * @returns Promise resolving to WagtailPage or null if not found
  * @throws ApiError for network errors, timeouts, or server errors
  */
-export async function findPageById(pageId: number): Promise<WagtailPage | null> {
+export async function findPageById(pageId: number, currentUrl?: string): Promise<WagtailPage | null> {
 	try {
-		const detailUrl = `${BASE_API_URL}pages/${pageId}/?fields=*`;
+		const baseApiUrl = getBaseApiUrl(currentUrl);
+		const detailUrl = `${baseApiUrl}pages/${pageId}/?fields=*`;
 		console.log('Fetching page by ID from:', detailUrl);
 		const response = await fetchWithTimeout(detailUrl);
 
@@ -78,20 +113,20 @@ export async function findPageById(pageId: number): Promise<WagtailPage | null> 
 		const slug = pageData.meta?.slug || pageData.slug;
 		if (!slug) {
 			// If no slug, return page without translations
-			return parsePageDataWithTranslations(pageData, [pageData]);
+			return parsePageDataWithTranslations(pageData, [pageData], currentUrl);
 		}
 
 		// Fetch all translations for this slug
-		const translationsUrl = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+		const translationsUrl = `${baseApiUrl}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
 		const translationsResponse = await fetchWithTimeout(translationsUrl);
 
 		if (translationsResponse.ok) {
 			const translationsData = await translationsResponse.json();
-			return parsePageDataWithTranslations(pageData, translationsData.items || [pageData]);
+			return parsePageDataWithTranslations(pageData, translationsData.items || [pageData], currentUrl);
 		}
 
 		// If translations fetch fails, return page without translations
-		return parsePageDataWithTranslations(pageData, [pageData]);
+		return parsePageDataWithTranslations(pageData, [pageData], currentUrl);
 	} catch (error) {
 		// Re-throw ApiErrors as-is
 		if (isApiError(error)) {
@@ -117,7 +152,8 @@ export async function findPageById(pageId: number): Promise<WagtailPage | null> 
  */
 export async function findPageBySlug(slug: string, currentUrl?: string): Promise<WagtailPage | null> {
   try {
-    const url = `${BASE_API_URL}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
+    const baseApiUrl = getBaseApiUrl(currentUrl);
+    const url = `${baseApiUrl}pages/?slug=${encodeURIComponent(slug)}&fields=*`;
     const response = await fetchWithTimeout(url);
 
     // Handle HTTP error status codes
@@ -181,7 +217,7 @@ export async function findPageBySlug(slug: string, currentUrl?: string): Promise
     const fullPageData = await detailResponse.json();
 
     // Parse the full page data with all translations
-    return parsePageDataWithTranslations(fullPageData, data.items);
+    return parsePageDataWithTranslations(fullPageData, data.items, currentUrl);
   } catch (error) {
     // Re-throw ApiErrors as-is
     if (isApiError(error)) {
@@ -202,11 +238,13 @@ export async function findPageBySlug(slug: string, currentUrl?: string): Promise
  * Parses API response data into a WagtailPage object with translations from all items
  * @param pageData - Raw page data from the API for the current page
  * @param allItems - All items returned from the API (including translations)
+ * @param currentUrl - Optional current URL to determine which admin URL to use
  * @returns Parsed WagtailPage object
  */
-function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailPage {
+function parsePageDataWithTranslations(pageData: any, allItems: any[], currentUrl?: string): WagtailPage {
   const pageId = pageData.id;
-  const editUrl = `https://api.sf.gov/admin/pages/${pageId}/edit/`;
+  const adminBaseUrl = getAdminBaseUrl(currentUrl);
+  const editUrl = `${adminBaseUrl}pages/${pageId}/edit/`;
 
   // Extract primary agency information
   let primaryAgency = undefined;
@@ -255,7 +293,7 @@ function parsePageDataWithTranslations(pageData: any, allItems: any[]): WagtailP
     primaryAgency,
     schema,
     formConfirmation,
-    translations: extractTranslationsFromItems(allItems),
+    translations: extractTranslationsFromItems(allItems, currentUrl),
     images: extractImages(pageData),
     files: extractFiles(pageData),
     editUrl,
@@ -388,9 +426,10 @@ function extractFiles(pageData: any): MediaAsset[] {
 /**
  * Extracts translation information from all items returned by the API
  * @param allItems - All page items from the API response (same slug, different locales)
+ * @param currentUrl - Optional current URL to determine which admin URL to use
  * @returns Array of Translation objects
  */
-function extractTranslationsFromItems(allItems: any[]): Translation[] {
+function extractTranslationsFromItems(allItems: any[], currentUrl?: string): Translation[] {
   const translations: Translation[] = [];
   const seenPageIds = new Set<number>();
 
@@ -404,6 +443,8 @@ function extractTranslationsFromItems(allItems: any[]): Translation[] {
     'ru': 'Русский'
   };
 
+  const adminBaseUrl = getAdminBaseUrl(currentUrl);
+
   // Process each item as a translation
   allItems.forEach((item: any) => {
     if (item.id && !seenPageIds.has(item.id)) {
@@ -415,7 +456,7 @@ function extractTranslationsFromItems(allItems: any[]): Translation[] {
         language: languageName,
         languageCode: languageCode,
         pageId: item.id,
-        editUrl: `https://api.sf.gov/admin/pages/${item.id}/edit/`,
+        editUrl: `${adminBaseUrl}pages/${item.id}/edit/`,
         title: item.title || ''
       });
       seenPageIds.add(item.id);

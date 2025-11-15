@@ -5,16 +5,16 @@
  */
 
 /**
- * Check if a URL matches the SF.gov domain pattern (*.sf.gov)
+ * Check if a URL matches the SF.gov domain pattern (*.sf.gov or *.staging.dev.sf.gov)
  * @param url - The URL to check
- * @returns true if the URL matches *.sf.gov, false otherwise
+ * @returns true if the URL matches *.sf.gov or staging, false otherwise
  */
 function isSfGovDomain(url: string): boolean {
 	try {
 		const urlObj = new URL(url);
 		const hostname = urlObj.hostname.toLowerCase();
 		
-		// check if hostname is exactly sf.gov or ends with .sf.gov
+		// check if hostname is exactly sf.gov or ends with .sf.gov (including staging)
 		return hostname === "sf.gov" || hostname.endsWith(".sf.gov");
 	} catch (err) {
 		// URL parsing failed (e.g., chrome://, about:blank, invalid URLs)

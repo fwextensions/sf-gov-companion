@@ -210,7 +210,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
 		try {
 			console.log("Fetching page data for ID:", pageId, { previewMode, previewParams });
 			// TODO: Pass previewParams to findPageById once task 5 is complete
-			const data = await findPageById(pageId);
+			const data = await findPageById(pageId, currentTabStateRef.current?.url);
 			
 			// Cache the result
 			pageCacheRef.current.set(cacheKey, {
