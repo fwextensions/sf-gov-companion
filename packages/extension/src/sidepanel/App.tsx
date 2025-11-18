@@ -48,6 +48,30 @@ export default function App()
 		);
 	}
 
+	// If on admin page, show only the iframe with the SF.gov page
+	if (isAdminPage) {
+		const iframeUrl = (isPreviewMode && previewUrl) || previewUrl || pageData?.meta.htmlUrl;
+		
+		if (iframeUrl) {
+			return (
+				<iframe
+					key={iframeUrl}
+					src={iframeUrl}
+					className="w-full h-screen border-0"
+					title="SF.gov Page Preview"
+				/>
+			);
+		}
+
+		return (
+			<Container>
+				<div className="flex flex-col items-center justify-center min-h-[200px] p-8 text-center">
+					<p className="text-gray-600 text-sm">Preview is not available yet.</p>
+				</div>
+			</Container>
+		);
+	}
+
 	if (!pageData) {
 		return (
 			<Container>
@@ -55,21 +79,6 @@ export default function App()
 					<p className="text-gray-600 text-sm">Page data is unavailable.</p>
 				</div>
 			</Container>
-		);
-	}
-
-	// If on admin page, show only the iframe with the SF.gov page
-	if (isAdminPage && pageData.meta.htmlUrl) {
-		// Use preview URL if available, otherwise use the base HTML URL
-		const iframeUrl = isPreviewMode && previewUrl ? previewUrl : pageData.meta.htmlUrl;
-		
-		return (
-			<iframe
-				key={iframeUrl}
-				src={iframeUrl}
-				className="w-full h-screen border-0"
-				title="SF.gov Page Preview"
-			/>
 		);
 	}
 

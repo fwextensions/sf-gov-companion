@@ -168,6 +168,25 @@ export function useSfGovPage(): UseSfGovPageReturn {
 	const currentTabStateRef = useRef<TabState | null>(null);
 	const lastValidStateRef = useRef<{ url: string; pageData: WagtailPage } | null>(null);
 
+	const requestPreviewState = useCallback(async (): Promise<void> => {
+		try {
+			const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+			if (tabs.length === 0 || !tabs[0] || !tabs[0].id) {
+				console.warn("No active tab available for preview state request");
+				return;
+			}
+
+			try {
+				console.log("Requesting current preview state from content script");
+				await chrome.tabs.sendMessage(tabs[0].id, { type: "REQUEST_PREVIEW_STATE" });
+			} catch (err) {
+				console.log("Could not request preview state (content script may not be ready):", err);
+			}
+		} catch (err) {
+			console.error("Error querying tabs for preview state request:", err);
+		}
+	}, []);
+
 	/**
 	 * Fetches page data from the Wagtail API by page ID with caching
 	 * @param pageId - The page ID to fetch data for
@@ -212,6 +231,16 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			// TODO: Pass previewParams to findPageById once task 5 is complete
 			const data = await findPageById(pageId, currentTabStateRef.current?.url);
 			
+			if (!data) {
+				console.log("No page data returned for ID, awaiting preview fallback:", pageId);
+				pageCacheRef.current.delete(cacheKey);
+				setPageData(null);
+				setError(null);
+				setIsLoading(false);
+				requestPreviewState();
+				return;
+			}
+			
 			// Cache the result
 			pageCacheRef.current.set(cacheKey, {
 				data,
@@ -236,6 +265,17 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			// Type check for ApiError
 			const apiError = err as ApiError;
 			if (apiError && apiError.type && apiError.message && typeof apiError.retryable === "boolean") {
+				if (apiError.type === "not_found" && currentTabStateRef.current?.isAdminPage) {
+					console.log("Page not found in API for admin edit view, falling back to preview only mode", { pageId });
+					pageCacheRef.current.delete(cacheKey);
+					setPageData(null);
+					setError(null);
+					setIsLoading(false);
+					lastValidStateRef.current = null;
+					requestPreviewState();
+					return;
+				}
+
 				// Cache non-retryable errors
 				if (!apiError.retryable) {
 					pageCacheRef.current.set(cacheKey, {
@@ -260,7 +300,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			
 			setIsLoading(false);
 		}
-	}, [previewUrl]);
+	}, [previewUrl, requestPreviewState]);
 
 	/**
 	 * Fetches page data from the Wagtail API with caching
@@ -454,17 +494,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			console.log("On Wagtail admin edit page with ID:", pageId);
 			fetchPageDataById(pageId);
 			
-			// Request current preview state from content script
-			chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-				if (tabs.length > 0 && tabs[0] && tabs[0].id) {
-					console.log("Requesting current preview state from content script");
-					chrome.tabs.sendMessage(tabs[0].id, { type: "REQUEST_PREVIEW_STATE" }).catch(err => {
-						console.log("Could not request preview state (content script may not be ready):", err);
-					});
-				}
-			}).catch(err => {
-				console.error("Error querying tabs for preview state request:", err);
-			});
+			requestPreviewState();
 		} else if (onSfGov && slug) {
 			// On SF.gov with valid slug - fetch data with debouncing
 			console.log("On SF.gov page with slug:", slug);
@@ -483,7 +513,7 @@ export function useSfGovPage(): UseSfGovPageReturn {
 			setPageData(null);
 			setError(null);
 		}
-	}, [debouncedFetchPageData, fetchPageDataById, previewUrl, isPreviewMode]);
+	}, [debouncedFetchPageData, fetchPageDataById, previewUrl, isPreviewMode, requestPreviewState]);
 
 	/**
 	 * Retry function that clears cache and refetches data
@@ -518,11 +548,11 @@ export function useSfGovPage(): UseSfGovPageReturn {
   /**
    * Load data for the current active tab on mount
    */
-  useEffect(() => {
-    const loadCurrentPage = async () => {
-      try {
-        // Query current active tab
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  	useEffect(() => {
+		const loadCurrentPage = async () => {
+			try {
+				// Query current active tab
+				const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         
         if (tabs.length === 0 || !tabs[0] || !tabs[0].url) {
           console.warn('No active tab found or tab has no URL');
@@ -533,26 +563,21 @@ export function useSfGovPage(): UseSfGovPageReturn {
         const tab = tabs[0];
         const url = tab.url!;
         
-        console.log('Loading current page:', url);
-        handleTabUpdate(url);
-        
-        // If on admin page, request current preview state from content script
-        if (url.includes('/admin/pages/') && url.includes('/edit/')) {
-          console.log('Requesting current preview state from content script');
-          try {
-            await chrome.tabs.sendMessage(tab.id!, { type: 'REQUEST_PREVIEW_STATE' });
-          } catch (err) {
-            console.log('Could not request preview state (content script may not be ready):', err);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading current page:', err);
-        setIsOnSfGovState(false);
-      }
-    };
+        				console.log('Loading current page:', url);
+				handleTabUpdate(url);
+				
+				// If on admin page, request current preview state from content script
+				if (url.includes('/admin/pages/') && url.includes('/edit/')) {
+					await requestPreviewState();
+				}
+			} catch (err) {
+				console.error('Error loading current page:', err);
+				setIsOnSfGovState(false);
+			}
+		};
 
-    loadCurrentPage();
-  }, [handleTabUpdate]);
+		loadCurrentPage();
+	}, [handleTabUpdate, requestPreviewState]);
 
 	/**
 	 * Set up preview message listener

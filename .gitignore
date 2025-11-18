@@ -39,3 +39,5 @@ packages/*/node_modules
 *.sw?
 
 .vercel
+
+samples

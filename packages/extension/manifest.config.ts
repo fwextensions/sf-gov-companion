@@ -3,7 +3,7 @@ import pkg from "./package.json";
 
 export default defineManifest({
 	manifest_version: 3,
-	name: "SF.gov Companion",
+	name: "Karl Jr.",
 	version: pkg.version,
 	description: "Browser extension that provides information about SF.gov pages, with links to Karl for editing",
 	icons: {
@@ -29,7 +29,7 @@ export default defineManifest({
 		type: "module",
 	},
 	action: {
-		default_title: "Open SF.gov Companion",
+		default_title: "Open Karl Jr.",
 		default_icon: {
 			"16": "src/img/favicon-16.png",
 			"32": "src/img/favicon-32.png",
