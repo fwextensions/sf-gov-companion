@@ -17,7 +17,7 @@ export default defineConfig({
 		react(),
 		tailwindcss(),
 		crx({ manifest }),
-		zip({ outDir: 'release', outFileName: `sf-gov-companion-${version}.zip` }),
+		zip({ outDir: 'release', outFileName: `karl-jr-${version}.zip` }),
 	],
 	server: {
 		cors: {
