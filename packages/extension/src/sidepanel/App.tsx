@@ -9,6 +9,7 @@ import { MediaAssetsCard } from "./components/MediaAssetsCard";
 import { FormConfirmationCard } from "./components/FormConfirmationCard";
 import { PreviewBanner } from "./components/PreviewBanner";
 import { FeedbackCard } from "./components/FeedbackCard";
+import { A11yCheckCard } from "./components/A11yCheckCard";
 
 const Container = ({ children }: { children: React.ReactNode }) => (
 	<div className="min-h-screen p-4 bg-gray-50">
@@ -51,7 +52,7 @@ export default function App()
 	// If on admin page, show only the iframe with the SF.gov page
 	if (isAdminPage) {
 		const iframeUrl = (isPreviewMode && previewUrl) || previewUrl || pageData?.meta.htmlUrl;
-		
+
 		if (iframeUrl) {
 			return (
 				<iframe
@@ -130,6 +131,7 @@ export default function App()
 				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
 				<FeedbackCard pagePath={pagePath} />
+				<A11yCheckCard />
 			</div>
 		</Container>
 	);
