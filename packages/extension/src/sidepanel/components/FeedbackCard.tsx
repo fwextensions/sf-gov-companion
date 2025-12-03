@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Card } from "./Card";
 import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
 import { getFeedbackByPath, clearCache } from "@/api/airtable-client";
+import { Button } from "@/sidepanel/components/Button.tsx";
 
 interface FeedbackCardProps {
 	pagePath: string;
@@ -143,12 +144,9 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 						</div>
 					)}
 					{error.retryable && (
-						<button
-							onClick={handleRetry}
-							className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-						>
+						<Button onClick={handleRetry}>
 							Retry
-						</button>
+						</Button>
 					)}
 				</div>
 			</Card>

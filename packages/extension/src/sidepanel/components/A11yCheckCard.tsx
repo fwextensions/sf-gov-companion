@@ -29,6 +29,47 @@ const RunningLabel = () => (
 	</>
 );
 
+const Results = ({ results }: { results: A11yResult[] }) => (
+	<div className="mt-4 space-y-3">
+		<div className="text-sm text-gray-500 font-medium">
+			Found {results.length} issue{results.length === 1 ? "" : "s"}
+		</div>
+		<div className="space-y-2 pr-1">
+			{results.map((result, index) => (
+				<div
+					key={index}
+					className="p-3 bg-gray-50 rounded border border-gray-100 text-sm"
+				>
+					<div className="font-medium text-gray-900 mb-1">
+						{result.type}
+					</div>
+					{result.details && (
+						<div className="text-gray-600 mb-1">{result.details}</div>
+					)}
+					{result.linkText && (
+						<div className="text-gray-600">
+							<span className="font-medium">Text:</span>{" "}
+							{result.linkText}
+						</div>
+					)}
+					{result.targetUrl && (
+						<div className="text-gray-600 break-all">
+							<span className="font-medium">Target:</span>{" "}
+							{result.targetUrl}
+						</div>
+					)}
+					{result.imageFilename && (
+						<div className="text-gray-600 break-all">
+							<span className="font-medium">File:</span>{" "}
+							{result.imageFilename}
+						</div>
+					)}
+				</div>
+			))}
+		</div>
+	</div>
+);
+
 export function A11yCheckCard()
 {
 	const [results, setResults] = useState<A11yResult[]>([]);
@@ -92,46 +133,7 @@ export function A11yCheckCard()
 				</div>
 			)}
 
-			{results.length > 0 && (
-				<div className="mt-4 space-y-3">
-					<div className="text-sm text-gray-500 font-medium">
-						Found {results.length} issue{results.length === 1 ? "" : "s"}
-					</div>
-					<div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-						{results.map((result, index) => (
-							<div
-								key={index}
-								className="p-3 bg-gray-50 rounded border border-gray-100 text-sm"
-							>
-								<div className="font-medium text-gray-900 mb-1">
-									{result.type}
-								</div>
-								{result.details && (
-									<div className="text-gray-600 mb-1">{result.details}</div>
-								)}
-								{result.linkText && (
-									<div className="text-gray-600">
-										<span className="font-medium">Text:</span>{" "}
-										{result.linkText}
-									</div>
-								)}
-								{result.targetUrl && (
-									<div className="text-gray-600 break-all">
-										<span className="font-medium">Target:</span>{" "}
-										{result.targetUrl}
-									</div>
-								)}
-								{result.imageFilename && (
-									<div className="text-gray-600 break-all">
-										<span className="font-medium">File:</span>{" "}
-										{result.imageFilename}
-									</div>
-								)}
-							</div>
-						))}
-					</div>
-				</div>
-			)}
+			{results.length > 0 && <Results results={results} />}
 		</Card>
 	);
 }
