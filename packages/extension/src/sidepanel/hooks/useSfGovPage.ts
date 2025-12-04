@@ -3,9 +3,10 @@
  * Handles Chrome tab monitoring, data fetching, caching, and error states
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { WagtailPage, ApiError, CacheEntry } from '@sf-gov/shared';
-import { findPageBySlug, findPageById } from '../../api/wagtail-client';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ApiError, CacheEntry, WagtailPage } from "@sf-gov/shared";
+import { findPageById, findPageBySlug } from "@/api/wagtail-client";
+import { extractPageIdFromAdminUrl, extractPageSlug } from "@/lib/urlUtils.ts";
 
 /**
  * Cache time-to-live in milliseconds (5 minutes)
@@ -71,48 +72,6 @@ function isWagtailAdminEditPage(url: string): boolean {
     return urlObj.hostname.includes('sf.gov') && urlObj.pathname.includes('/admin/pages/') && urlObj.pathname.includes('/edit/');
   } catch (error) {
     return false;
-  }
-}
-
-/**
- * Extracts the page ID from a Wagtail admin edit URL
- * @param url - The admin edit URL
- * @returns The page ID, or null if not found
- */
-function extractPageIdFromAdminUrl(url: string): number | null {
-  try {
-    const urlObj = new URL(url);
-    const match = urlObj.pathname.match(/\/admin\/pages\/(\d+)\/edit\//);
-    return match ? parseInt(match[1], 10) : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
- * Extracts the page slug from an SF.gov URL
- * @param url - The URL to extract the slug from
- * @returns The page slug, or empty string if not found
- */
-function extractPageSlug(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    let pathname = urlObj.pathname;
-    
-    // Remove trailing slash
-    if (pathname.endsWith('/')) {
-      pathname = pathname.slice(0, -1);
-    }
-    
-    // Remove leading slash
-    if (pathname.startsWith('/')) {
-      pathname = pathname.slice(1);
-    }
-    
-    // Return the pathname as the slug
-    return pathname;
-  } catch (error) {
-    return '';
   }
 }
 

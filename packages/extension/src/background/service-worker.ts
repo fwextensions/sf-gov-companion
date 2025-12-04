@@ -4,6 +4,14 @@
  * Forwards messages from content scripts to side panel
  */
 
+import { extractPageSlug } from "@/lib/urlUtils.ts";
+import { findPageBySlug } from "@/api/wagtail-client.ts";
+
+	// Add hostnames to exclude here, e.g.:
+const EXCLUDED_HOSTNAMES: string[] = [
+	"api.sf.gov"
+];
+
 /**
  * Check if a URL matches the SF.gov domain pattern (*.sf.gov or *.staging.dev.sf.gov)
  * @param url - The URL to check
@@ -52,6 +60,26 @@ async function updateSidePanelForTab(tabId: number, url: string): Promise<void> 
 }
 
 /**
+ * Update context menu visibility based on the URL
+ * Can't use negative lookups in documentUrlPatterns, so we handle it here
+ */
+async function updateContextMenuVisibility(url: string): Promise<void> {
+	try {
+		const urlObj = new URL(url);
+		const isExcluded = EXCLUDED_HOSTNAMES.includes(urlObj.hostname);
+		
+		// Update the menu item visibility
+		// Note: This affects the menu globally, but since we update it on tab activation/update,
+		// it effectively works per-tab for the active user.
+		await chrome.contextMenus.update("edit-on-karl", {
+			visible: !isExcluded
+		});
+	} catch (err) {
+		// Ignore errors (e.g. if menu item doesn't exist yet or invalid URL)
+	}
+}
+
+/**
  * Set up event listeners when the service worker is installed
  */
 chrome.runtime.onInstalled.addListener(() => {
@@ -60,6 +88,48 @@ chrome.runtime.onInstalled.addListener(() => {
 	
 	void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 	console.log("SF.gov Companion installed");
+
+  // Create a menu item that appears when right-clicking anywhere on the page
+  // BUT only on URLs matching the specified pattern
+  chrome.contextMenus.create({
+    id: "edit-on-karl",
+    title: "Edit on Karl",
+    contexts: ["page", "action"], // "page" for right-click on the page, "action" for the icon
+    documentUrlPatterns: [
+      "https://*.sf.gov/*",
+      "http://*.sf.gov/*"
+    ]
+  });
+});
+
+// Add a listener for when the menu item is clicked
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "edit-on-karl") {
+    if (tab?.url && isSfGovDomain(tab.url)) {
+			const { url } = tab;
+			
+			// Double-check exclusion list
+			try {
+				const urlObj = new URL(url);
+				if (EXCLUDED_HOSTNAMES.includes(urlObj.hostname)) return;
+			} catch (e) { /* ignore */ }
+
+      console.log("==== edit", url);
+
+			try {
+				const slug = extractPageSlug(url);
+				const data = await findPageBySlug(slug);
+
+				if (data) {
+					const editUrl = `https://api.sf.gov/admin/pages/${data.id}/edit/`;
+
+					await chrome.tabs.create({ url: editUrl });
+				}
+			} catch (e) {
+				console.error(e);
+			}
+    }
+  }
 });
 
 /**
@@ -71,6 +141,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 		if (!tab.url) return;
 		
 		await updateSidePanelForTab(tabId, tab.url);
+		await updateContextMenuVisibility(tab.url);
 	} catch (err) {
 		console.error("Side panel activation handling error:", err);
 	}
@@ -84,6 +155,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, _changeInfo, tab) => {
 	
 	try {
 		await updateSidePanelForTab(tabId, tab.url);
+		await updateContextMenuVisibility(tab.url);
 	} catch (err) {
 		console.error("Side panel update handling error:", err);
 	}

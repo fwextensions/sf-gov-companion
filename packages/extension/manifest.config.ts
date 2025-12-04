@@ -18,6 +18,7 @@ export default defineManifest({
 		"storage",
 		"scripting",
 		"cookies",
+		"contextMenus",
 	],
 	host_permissions: [
 		"*://*.sf.gov/*",

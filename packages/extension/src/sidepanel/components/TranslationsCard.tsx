@@ -28,7 +28,7 @@ export const TranslationsCard: React.FC<TranslationsCardProps> = ({ translations
               href={translation.editUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex-1"
+              className="text-sm flex-1"
             >
               {translation.title}
             </a>

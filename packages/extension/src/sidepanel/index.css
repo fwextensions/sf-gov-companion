@@ -1,4 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-roboto: "Roboto", system-ui, -apple-system, sans-serif;
+  --font-slab: "Roboto Slab", system-ui, -apple-system, serif;
+
+  --color-sfgov-blue: #2a60af;
+  --color-sfgov-blue-hover: #001d4e;
+  --color-sfgov-blue-text: #1b519e;
+}
 
 @source "../**/*.{ts,tsx,html}";
 
@@ -11,8 +21,19 @@
   }
 
   body {
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: var(--font-roboto);
   }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-slab);
+  }
+
+	a {
+		@apply
+			text-sfgov-blue-text
+			hover:text-sfgov-blue-hover
+			hover:underline;
+	}
 }
 
 @layer components {

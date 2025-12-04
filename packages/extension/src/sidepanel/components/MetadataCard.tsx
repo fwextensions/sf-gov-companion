@@ -46,7 +46,6 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 							href={primaryAgency.url}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="text-blue-600 hover:text-blue-800 hover:underline"
 						>
 							{primaryAgency.title}
 						</a>
@@ -64,7 +63,6 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 								target="_blank"
 								rel="noopener noreferrer"
 								title="View form in form.io"
-								className="text-blue-600 hover:text-blue-800 hover:underline"
 							>
 								{schema.title}
 							</a>
@@ -79,7 +77,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 						target="_blank"
 						rel="noopener noreferrer"
 						title="View page data from SF.gov API"
-						className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
+						className="text-sm break-all"
 					>
 						{pageId}
 					</a>
