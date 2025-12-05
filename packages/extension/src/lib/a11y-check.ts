@@ -53,6 +53,7 @@ export function runA11yCheck(): A11yResult[]
 		return VALID_TLDS.some((tld) => url.toLowerCase().endsWith(tld));
 	}
 
+	//@ts-ignore
 	function analyzeTables(
 		doc: Document,
 		url: string): A11yResult[]
@@ -198,6 +199,7 @@ export function runA11yCheck(): A11yResult[]
 		return results;
 	}
 
+	//@ts-ignore
 	function extractPdfLinks(
 		doc: Document,
 		url: string): A11yResult[]
@@ -225,6 +227,7 @@ export function runA11yCheck(): A11yResult[]
 		return results;
 	}
 
+	//@ts-ignore
 	function findImagesWithAlt(
 		doc: Document,
 		url: string
@@ -315,6 +318,7 @@ export function runA11yCheck(): A11yResult[]
 		return results;
 	}
 
+	//@ts-ignore
 	function findOfficeLinks(
 		doc: Document,
 		url: string): A11yResult[]
