@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "./Card";
 import type { FeedbackRecord, FeedbackStats, AirtableApiError } from "@sf-gov/shared";
-import { getFeedbackByPath, getFeedbackStats, clearCache } from "@/api/airtable-client";
+import { getFeedback, clearCache } from "@/api/airtable-client";
 import { Button } from "@/sidepanel/components/Button.tsx";
 
 interface FeedbackCardProps {
@@ -103,10 +103,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 
 		try {
 			// fetch feedback via proxy (uses Wagtail session cookie)
-			const [records, statistics] = await Promise.all([
-				getFeedbackByPath(pagePath),
-				getFeedbackStats(pagePath)
-			]);
+			const { records, stats: statistics } = await getFeedback(pagePath);
 			setFeedback(records);
 			setStats(statistics);
 		} catch (err) {

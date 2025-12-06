@@ -28,6 +28,14 @@ export interface FeedbackStats {
 }
 
 /**
+ * Combined feedback response with stats and recent records
+ */
+export interface FeedbackResponse {
+	stats: FeedbackStats;
+	records: FeedbackRecord[];
+}
+
+/**
  * Raw Airtable API response structure
  */
 export interface AirtableResponse {

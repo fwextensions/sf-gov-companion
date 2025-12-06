@@ -4,6 +4,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"dev": "node --env-file=.env dev-server.ts",
+		"dev:vercel": "vercel dev",
 		"deploy": "vercel --prod",
 		"type-check": "tsc --noEmit"
 	},
