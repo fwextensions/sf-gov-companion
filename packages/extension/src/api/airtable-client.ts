@@ -3,17 +3,27 @@
  * Handles communication with the Airtable proxy API for user feedback data
  */
 
-import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
+import type { FeedbackRecord, FeedbackStats, AirtableApiError } from "@sf-gov/shared";
 
 /**
  * API proxy endpoint URL
  */
-const API_PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "https://sfgov-companion-api.vercel.app/api/airtable-proxy";
+/**
+ * API Base URL
+ * Defaults to production, can be overridden by VITE_API_BASE_URL
+ */
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://sfgov-companion-api.vercel.app";
+
+/**
+ * API proxy endpoint URL
+ */
+const API_PROXY_URL = `${API_BASE_URL}/api/airtable-proxy`;
+const API_STATS_URL = `${API_BASE_URL}/api/feedback-stats`;
 
 /**
  * Default timeout for API requests in milliseconds
  */
-const DEFAULT_TIMEOUT = 10000;
+const DEFAULT_TIMEOUT = 30000;
 
 /**
  * Cache TTL in milliseconds (5 minutes)
@@ -28,10 +38,16 @@ interface CacheEntry {
 	timestamp: number;
 }
 
+interface StatsCacheEntry {
+	data: FeedbackStats;
+	timestamp: number;
+}
+
 /**
  * In-memory cache for feedback records
  */
 const feedbackCache = new Map<string, CacheEntry>();
+const statsCache = new Map<string, StatsCacheEntry>();
 
 /**
  * Proxy API response structure
@@ -247,6 +263,72 @@ export async function getFeedbackByPath(path: string): Promise<FeedbackRecord[]>
 	}
 }
 
+
+/**
+ * Fetches feedback statistics for a given page path
+ * @param path - The page path to fetch stats for
+ * @returns Promise resolving to FeedbackStats
+ */
+export async function getFeedbackStats(path: string): Promise<FeedbackStats> {
+	const normalizedPath = normalizePath(path);
+	const cacheKey = `stats:${normalizedPath}`;
+
+	// check cache first
+	const cached = statsCache.get(cacheKey);
+	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+		console.log("Returning cached stats for:", normalizedPath);
+		return cached.data;
+	}
+
+	const sessionId = await getWagtailSessionId();
+	if (!sessionId) {
+		throw createApiError("auth", "Not authenticated.");
+	}
+
+	const url = new URL(API_STATS_URL);
+	url.searchParams.set("pagePath", normalizedPath);
+
+	console.log("Fetching stats from proxy:", url.toString());
+
+	try {
+		const response = await fetchWithTimeout(
+			url.toString(),
+			{
+				headers: {
+					"X-Wagtail-Session": sessionId,
+					"X-SF-Gov-Extension": "companion",
+				},
+			}
+		);
+
+		if (!response.ok) {
+			if (response.status === 401) throw createApiError("auth", "Invalid session", 401);
+			if (response.status === 403) throw createApiError("auth", "Access denied", 403);
+			if (response.status === 429) throw createApiError("rate_limit", "Too many requests", 429);
+			if (response.status >= 500) throw createApiError("server_error", "Server error", response.status);
+			throw createApiError("network", `HTTP error ${response.status}`, response.status);
+		}
+
+		const data: FeedbackStats = await response.json();
+
+		statsCache.set(cacheKey, {
+			data,
+			timestamp: Date.now(),
+		});
+
+		return data;
+	} catch (error) {
+		if (isAirtableApiError(error)) throw error;
+		if (error instanceof Error && error.message === "Request timed out") {
+			throw createApiError("timeout", "Request timed out. Please try again.");
+		}
+		if (error instanceof TypeError) {
+			throw createApiError("network", "Unable to connect to API.");
+		}
+		throw createApiError("network", "An unexpected error occurred");
+	}
+}
+
 /**
  * Creates an AirtableApiError object with the specified properties
  * @param type - The error type
@@ -289,9 +371,10 @@ function isAirtableApiError(error: any): error is AirtableApiError {
 export function clearCache(path?: string): void {
 	if (path) {
 		const normalizedPath = normalizePath(path);
-		const cacheKey = `feedback:${normalizedPath}`;
-		feedbackCache.delete(cacheKey);
+		feedbackCache.delete(`feedback:${normalizedPath}`);
+		statsCache.delete(`stats:${normalizedPath}`);
 	} else {
 		feedbackCache.clear();
+		statsCache.clear();
 	}
 }

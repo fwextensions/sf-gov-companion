@@ -1,13 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Redis } from "@upstash/redis";
 import type { AirtableResponse, FeedbackRecord } from "@sf-gov/shared";
 
-// initialize Upstash Redis client
-// Reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from process.env
-const redis = Redis.fromEnv();
-
-// parse optional environment variables with defaults
-const SESSION_CACHE_TTL = parseInt(process.env.SESSION_CACHE_TTL || "300", 10); // default: 5 minutes in seconds
+// cache TTL for session validation (5 minutes in seconds)
+// We use a constant here for simplicity with the raw fetch implementation, 
+// matching feedback-stats pattern
+const SESSION_CACHE_TTL = 300;
 const WAGTAIL_VALIDATION_TIMEOUT = parseInt(process.env.WAGTAIL_VALIDATION_TIMEOUT || "5000", 10); // default: 5 seconds in milliseconds
 
 /**
@@ -21,8 +18,8 @@ interface ProxyEnv {
 	AIRTABLE_API_KEY: string;
 	AIRTABLE_BASE_ID: string;
 	AIRTABLE_TABLE_NAME: string;
-	SESSION_CACHE_TTL?: number; // optional: cache TTL in seconds (default: 300)
-	WAGTAIL_VALIDATION_TIMEOUT?: number; // optional: validation timeout in milliseconds (default: 5000)
+	UPSTASH_REDIS_REST_URL?: string;
+	UPSTASH_REDIS_REST_TOKEN?: string;
 }
 
 /**
@@ -34,13 +31,12 @@ function validateEnv(): ProxyEnv {
 		AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY,
 		AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID,
 		AIRTABLE_TABLE_NAME: process.env.AIRTABLE_TABLE_NAME,
-		SESSION_CACHE_TTL,
-		WAGTAIL_VALIDATION_TIMEOUT,
+		UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+		UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
 	};
 
-	const missing = Object.entries(env)
-		.filter(([key, value]) => !value && key !== "SESSION_CACHE_TTL" && key !== "WAGTAIL_VALIDATION_TIMEOUT")
-		.map(([key]) => key);
+	const required = ["WAGTAIL_API_URL", "AIRTABLE_API_KEY", "AIRTABLE_BASE_ID", "AIRTABLE_TABLE_NAME"];
+	const missing = required.filter(key => !env[key as keyof ProxyEnv]);
 
 	if (missing.length > 0) {
 		throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
@@ -69,26 +65,113 @@ function validateOrigin(origin: string | undefined): boolean {
 }
 
 /**
+ * Raw Redis Fetch Implementation
+ */
+async function redisGet<T>(key: string, url: string, token: string): Promise<T | null> {
+	try {
+		const encodedKey = encodeURIComponent(key);
+		const fetchUrl = `${url}/get/${encodedKey}`;
+		const response = await fetch(fetchUrl, {
+			headers: { Authorization: `Bearer ${token}` }
+		});
+
+		if (!response.ok) return null;
+
+		const data: any = await response.json();
+		if (!data.result) return null;
+
+		try {
+			return typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+		} catch {
+			return data.result as T;
+		}
+	} catch (error) {
+		console.error(`Redis GET failed for ${key}:`, error);
+		return null;
+	}
+}
+
+async function redisSet(key: string, value: any, url: string, token: string, ttlSeconds: number): Promise<void> {
+	try {
+		const encodedKey = encodeURIComponent(key);
+		const fetchUrl = `${url}/set/${encodedKey}?ex=${ttlSeconds}`;
+		const body = JSON.stringify(value);
+
+		const response = await fetch(fetchUrl, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json"
+			},
+			body: body
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			console.error(`Redis SET failed for ${key}: ${response.status} ${text}`);
+		}
+	} catch (error) {
+		console.error(`Redis SET failed for ${key}:`, error);
+	}
+}
+
+async function redisIncr(key: string, url: string, token: string): Promise<number | null> {
+	try {
+		const encodedKey = encodeURIComponent(key);
+		const fetchUrl = `${url}/incr/${encodedKey}`;
+		const response = await fetch(fetchUrl, {
+			headers: { Authorization: `Bearer ${token}` }
+		});
+		if (!response.ok) {
+			console.error(`Redis INCR failed for ${key}: ${response.status}`);
+			return null;
+		}
+		const data: any = await response.json();
+		return data.result as number;
+	} catch (error) {
+		console.error(`Redis INCR failed for ${key}:`, error);
+		return null;
+	}
+}
+
+async function redisExpire(key: string, seconds: number, url: string, token: string): Promise<void> {
+	try {
+		const encodedKey = encodeURIComponent(key);
+		const fetchUrl = `${url}/expire/${encodedKey}/${seconds}`;
+		const response = await fetch(fetchUrl, {
+			headers: { Authorization: `Bearer ${token}` }
+		});
+		if (!response.ok) {
+			console.error(`Redis EXPIRE failed for ${key}: ${response.status}`);
+		}
+	} catch (error) {
+		console.error(`Redis EXPIRE failed for ${key}:`, error);
+	}
+}
+
+/**
  * Implements rate limiting using Upstash Redis
  * Returns true if request should be allowed, false if rate limited
  * 
  * Uses Redis INCR and EXPIRE commands to track request counts per identifier
  * within a sliding window. If Redis is unavailable, fails open to allow requests.
  */
-async function checkRateLimit(identifier: string): Promise<boolean> {
+async function checkRateLimit(identifier: string, redisUrl?: string, redisToken?: string): Promise<boolean> {
+	if (!redisUrl || !redisToken) return true; // Fail open if Redis not configured
+
 	const key = `ratelimit:${identifier}`;
 	const limit = 10; // requests
 	const window = 10; // seconds
 
 	try {
-		const current = await redis.incr(key);
-		
+		const current = await redisIncr(key, redisUrl, redisToken);
+
 		if (current === 1) {
 			// first request in window, set expiration using Redis EXPIRE
-			await redis.expire(key, window);
+			await redisExpire(key, window, redisUrl, redisToken);
 		}
 
-		return current <= limit;
+		return (current || 0) <= limit;
 	} catch (error) {
 		// if Upstash Redis fails, allow the request (fail open)
 		console.error("Redis rate limit check failed:", error);
@@ -104,9 +187,10 @@ async function validateWagtailSession(sessionId: string, wagtailApiUrl: string):
 		// remove trailing slash from URL if present
 		const baseUrl = wagtailApiUrl.replace(/\/$/, "");
 		const validationUrl = `${baseUrl}/pages`;
-		
+
 		console.log(`Validating session with Wagtail admin: ${validationUrl}`);
-		const response = await fetch(validationUrl, {
+
+		const fetchPromise = fetch(validationUrl, {
 			method: "GET",
 			headers: {
 				"Cookie": `sessionid=${sessionId}`,
@@ -114,11 +198,16 @@ async function validateWagtailSession(sessionId: string, wagtailApiUrl: string):
 				"X-SF-Gov-Extension": "companion",
 			},
 			redirect: "manual", // don't follow redirects
-			signal: AbortSignal.timeout(WAGTAIL_VALIDATION_TIMEOUT),
 		});
 
+		const timeoutPromise = new Promise<Response>((_, reject) => {
+			setTimeout(() => reject(new Error("Request timed out")), WAGTAIL_VALIDATION_TIMEOUT);
+		});
+
+		const response = await Promise.race([fetchPromise, timeoutPromise]);
+
 		console.log(`Wagtail session validation response: ${response.status} ${response.statusText}`);
-		
+
 		// consider 200 OK and 3xx redirects as valid (logged in users get redirected)
 		return response.ok || (response.status >= 300 && response.status < 400);
 	} catch (error) {
@@ -141,14 +230,14 @@ function truncateSessionId(sessionId: string): string {
  * Uses Redis GET and SET commands with expiration to cache session validation results.
  * Falls back to direct Wagtail validation if Redis operations fail.
  */
-async function validateSessionWithCache(sessionId: string, wagtailApiUrl: string): Promise<boolean> {
+async function validateSessionWithCache(sessionId: string, wagtailApiUrl: string, redisUrl?: string, redisToken?: string): Promise<boolean> {
 	const cacheKey = `session:${sessionId}`;
 	const truncatedId = truncateSessionId(sessionId);
 
-	try {
-		// check Upstash Redis cache first with timing
+	// check cache
+	if (redisUrl && redisToken) {
 		const cacheReadStart = Date.now();
-		const cached = await redis.get<boolean>(cacheKey);
+		const cached = await redisGet<boolean>(cacheKey, redisUrl, redisToken);
 		const cacheReadDuration = Date.now() - cacheReadStart;
 
 		if (cached !== null) {
@@ -156,34 +245,30 @@ async function validateSessionWithCache(sessionId: string, wagtailApiUrl: string
 			console.log(`Session cache hit for session:${truncatedId} (${cacheReadDuration}ms)`);
 			return cached;
 		}
-
-		// Redis cache miss - log before validation
-		console.log(`Session cache miss for session:${truncatedId}, validating with Wagtail`);
-
-		// validate with Wagtail
-		const isValid = await validateWagtailSession(sessionId, wagtailApiUrl);
-
-		// store result in Upstash Redis cache if valid
-		if (isValid) {
-			try {
-				const cacheWriteStart = Date.now();
-				await redis.set(cacheKey, true, { ex: SESSION_CACHE_TTL });
-				const cacheWriteDuration = Date.now() - cacheWriteStart;
-				
-				// Redis cache write success - log with timing
-				console.log(`Session validation result cached for session:${truncatedId} (${cacheWriteDuration}ms)`);
-			} catch (writeError) {
-				// Redis cache write failed - log error but continue
-				console.error(`Redis cache write failed for session:${truncatedId}:`, writeError);
-			}
-		}
-
-		return isValid;
-	} catch (error) {
-		// Upstash Redis read operation failed - log error and fall back to direct validation
-		console.error(`Redis cache read failed for session:${truncatedId}:`, error);
-		return await validateWagtailSession(sessionId, wagtailApiUrl);
 	}
+
+	// Redis cache miss - log before validation
+	console.log(`Session cache miss for session:${truncatedId}, validating with Wagtail`);
+
+	// validate with Wagtail
+	const isValid = await validateWagtailSession(sessionId, wagtailApiUrl);
+
+	// store result in Upstash Redis cache if valid
+	if (isValid && redisUrl && redisToken) {
+		try {
+			const cacheWriteStart = Date.now();
+			await redisSet(cacheKey, true, redisUrl, redisToken, SESSION_CACHE_TTL);
+			const cacheWriteDuration = Date.now() - cacheWriteStart;
+
+			// Redis cache write success - log with timing
+			console.log(`Session validation result cached for session:${truncatedId} (${cacheWriteDuration}ms)`);
+		} catch (writeError) {
+			// Redis cache write failed - log error but continue
+			console.error(`Redis cache write failed for session:${truncatedId}:`, writeError);
+		}
+	}
+
+	return isValid;
 }
 
 /**
@@ -192,10 +277,10 @@ async function validateSessionWithCache(sessionId: string, wagtailApiUrl: string
 function normalizePath(path: string): string {
 	// Remove query parameters
 	const withoutQuery = path.split("?")[0];
-	
+
 	// Remove trailing slashes (except for root "/")
 	const withoutTrailingSlash = withoutQuery === "/" ? "/" : withoutQuery.replace(/\/+$/, "");
-	
+
 	// Convert to lowercase for case-insensitive matching
 	return withoutTrailingSlash.toLowerCase();
 }
@@ -208,34 +293,43 @@ async function fetchAirtableFeedback(
 	env: ProxyEnv
 ): Promise<FeedbackRecord[]> {
 	const normalizedPath = normalizePath(pagePath);
-	
+
 	// URL encode the table name (e.g., "Karl data" -> "Karl%20data")
 	const encodedTableName = encodeURIComponent(env.AIRTABLE_TABLE_NAME);
-	
+
 	// Build Airtable API URL with filter formula
 	const filterFormula = `LOWER({referrer})='${normalizedPath}'`;
 	const url = new URL(
 		`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodedTableName}`
 	);
-	
+
 	console.log(`Fetching from Airtable: ${url.toString()}`);
 	url.searchParams.set("filterByFormula", filterFormula);
 	url.searchParams.set("sort[0][field]", "submission_created");
 	url.searchParams.set("sort[0][direction]", "desc");
 	url.searchParams.set("maxRecords", "5");
 
+	let timeoutId: NodeJS.Timeout;
+
 	try {
-		const response = await fetch(url.toString(), {
+		const fetchPromise = fetch(url.toString(), {
 			method: "GET",
 			headers: {
 				"Authorization": `Bearer ${env.AIRTABLE_API_KEY}`,
 			},
-			signal: AbortSignal.timeout(10000), // 10 second timeout
 		});
 
+		const timeoutPromise = new Promise<Response>((_, reject) => {
+			timeoutId = setTimeout(() => reject(new Error("Request timed out")), 30000);
+		});
+
+		const response = await Promise.race([fetchPromise, timeoutPromise]);
+		clearTimeout(timeoutId!);
+
 		if (!response.ok) {
-			const errorText = await response.text();
-			throw new Error(`Airtable API error (${response.status}): ${errorText}`);
+			const text = await response.text();
+			console.error(`Airtable API error: ${response.status} ${text}`);
+			throw new Error(`Airtable API error: ${response.status}`);
 		}
 
 		const data = await response.json() as AirtableResponse;
@@ -253,6 +347,8 @@ async function fetchAirtableFeedback(
 		}));
 	} catch (error) {
 		console.error("Airtable fetch failed:", error);
+		// @ts-ignore
+		if (typeof timeoutId !== 'undefined') clearTimeout(timeoutId);
 		throw error;
 	}
 }
@@ -262,10 +358,10 @@ async function fetchAirtableFeedback(
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
 	const origin = req.headers.origin as string | undefined;
-	
+
 	// validate origin first
 	const isValidOrigin = validateOrigin(origin);
-	
+
 	// set CORS headers for valid origins
 	if (isValidOrigin && origin) {
 		res.setHeader("Access-Control-Allow-Origin", origin);
@@ -303,18 +399,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 		}
 
 		// Check rate limit (use session ID as identifier)
-		const rateLimitOk = await checkRateLimit(sessionId);
+		const rateLimitOk = await checkRateLimit(sessionId, env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN);
 		if (!rateLimitOk) {
-			return res.status(429).json({ 
-				error: "Too many requests. Please wait a moment and try again." 
+			return res.status(429).json({
+				error: "Too many requests. Please wait a moment and try again."
 			});
 		}
 
 		// Validate session with caching
-		const isValidSession = await validateSessionWithCache(sessionId, env.WAGTAIL_API_URL);
+		const isValidSession = await validateSessionWithCache(sessionId, env.WAGTAIL_API_URL, env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN);
 		if (!isValidSession) {
-			return res.status(401).json({ 
-				error: "Invalid or expired session. Please log in to Wagtail admin." 
+			return res.status(401).json({
+				error: "Invalid or expired session. Please log in to Wagtail admin."
 			});
 		}
 
@@ -332,7 +428,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 	} catch (error) {
 		console.error("Proxy handler error:", error);
-		
+
 		// Return appropriate error response
 		if (error instanceof Error) {
 			if (error.message.includes("Missing required environment variables")) {

@@ -17,6 +17,17 @@ export interface FeedbackRecord {
 }
 
 /**
+ * Calculated feedback statistics for a page
+ */
+export interface FeedbackStats {
+	total: number;
+	helpful: number;
+	notHelpful: number;
+	helpfulPercent: number;
+	notHelpfulPercent: number;
+}
+
+/**
  * Raw Airtable API response structure
  */
 export interface AirtableResponse {

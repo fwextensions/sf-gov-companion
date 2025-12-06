@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "./Card";
-import type { FeedbackRecord, AirtableApiError } from "@sf-gov/shared";
-import { getFeedbackByPath, clearCache } from "@/api/airtable-client";
+import type { FeedbackRecord, FeedbackStats, AirtableApiError } from "@sf-gov/shared";
+import { getFeedbackByPath, getFeedbackStats, clearCache } from "@/api/airtable-client";
 import { Button } from "@/sidepanel/components/Button.tsx";
 
 interface FeedbackCardProps {
@@ -36,11 +36,10 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 				</div>
 				{record.wasHelpful && (
 					<div
-						className={`text-xs font-medium px-2 py-1 rounded ${
-							record.wasHelpful === "yes"
+						className={`text-xs font-medium px-2 py-1 rounded ${record.wasHelpful === "yes"
 								? "bg-green-100 text-green-800"
 								: "bg-orange-100 text-orange-800"
-						}`}
+							}`}
 					>
 						{record.wasHelpful === "yes" ? "👍 Helpful" : "👎 Not Helpful"}
 					</div>
@@ -89,6 +88,7 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 
 export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
+	const [stats, setStats] = useState<FeedbackStats | null>(null);
 	const [error, setError] = useState<AirtableApiError | null>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -103,8 +103,12 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 
 		try {
 			// fetch feedback via proxy (uses Wagtail session cookie)
-			const records = await getFeedbackByPath(pagePath);
+			const [records, statistics] = await Promise.all([
+				getFeedbackByPath(pagePath),
+				getFeedbackStats(pagePath)
+			]);
 			setFeedback(records);
+			setStats(statistics);
 		} catch (err) {
 			setError(err as AirtableApiError);
 		} finally {
@@ -167,6 +171,21 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	return (
 		<Card title="User Feedback">
 			<div className="space-y-4">
+				{stats && stats.total > 0 && (
+					<div className="bg-gray-50 p-3 rounded-md mb-4 border border-gray-100">
+						<div className="grid grid-cols-2 gap-4 text-center">
+							<div>
+								<div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+								<div className="text-xs text-gray-500 uppercase tracking-wide">Total Feedback</div>
+							</div>
+							<div>
+								<div className="text-2xl font-bold text-gray-900">{stats.helpfulPercent}%</div>
+								<div className="text-xs text-gray-500 uppercase tracking-wide">Helpful</div>
+							</div>
+						</div>
+					</div>
+				)}
+
 				{feedback.map((record) => (
 					<FeedbackItem key={record.id} record={record} />
 				))}
