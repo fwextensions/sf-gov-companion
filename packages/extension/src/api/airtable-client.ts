@@ -3,7 +3,7 @@
  * Handles communication with the Airtable proxy API for user feedback data
  */
 
-import type { FeedbackRecord, FeedbackStats, FeedbackResponse, AirtableApiError } from "@sf-gov/shared";
+import type { FeedbackResponse, AirtableApiError } from "@sf-gov/shared";
 
 /**
  * API proxy endpoint URL
