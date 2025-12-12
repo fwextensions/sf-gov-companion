@@ -1,14 +1,31 @@
 import React from "react";
 import { Card } from "./Card";
+import { OpenIcon } from "./OpenIcon";
 import type { FormConfirmation } from "@sf-gov/shared";
 
 interface FormConfirmationCardProps {
 	formConfirmation: FormConfirmation;
+	currentUrl: string;
 }
 
 export const FormConfirmationCard: React.FC<FormConfirmationCardProps> = ({
-	formConfirmation
+	formConfirmation,
+	currentUrl
 }) => {
+	const getSubmittedUrl = () => {
+		try {
+			const url = new URL(currentUrl);
+			url.searchParams.set("submitted", "true");
+			return url.toString();
+		} catch {
+			return currentUrl + "?submitted=true";
+		}
+	};
+
+	const handleOpenConfirmation = () => {
+		window.open(getSubmittedUrl(), "_blank");
+	};
+
 	return (
 		<Card title="Form Confirmation">
 			<div className="space-y-3">
@@ -24,6 +41,14 @@ export const FormConfirmationCard: React.FC<FormConfirmationCardProps> = ({
 					/>
 				)}
 			</div>
+			<button
+				onClick={handleOpenConfirmation}
+				className="mt-2 inline-flex items-center gap-1 text-sm text-sfgov-blue hover:underline"
+				title="Open confirmation page in new tab"
+			>
+				<OpenIcon className="w-4 h-4" aria-hidden="true" />
+				Open confirmation page
+			</button>
 		</Card>
 	);
 };

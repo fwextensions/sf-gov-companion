@@ -19,7 +19,7 @@ const Container = ({ children }: { children: React.ReactNode }) => (
 
 export default function App()
 {
-	const { pageData, error, isLoading, isOnSfGov, isAdminPage, isPreviewMode, previewUrl, previewTimestamp, pagePath, retry } = useSfGovPage();
+	const { pageData, error, isLoading, isOnSfGov, isAdminPage, isPreviewMode, previewUrl, previewTimestamp, currentUrl, pagePath, retry } = useSfGovPage();
 
 	if (isLoading) {
 		return (
@@ -126,7 +126,7 @@ export default function App()
 					schema={pageData.schema}
 				/>
 				{pageData.formConfirmation && (
-					<FormConfirmationCard formConfirmation={pageData.formConfirmation} />
+					<FormConfirmationCard formConfirmation={pageData.formConfirmation} currentUrl={currentUrl} />
 				)}
 				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
