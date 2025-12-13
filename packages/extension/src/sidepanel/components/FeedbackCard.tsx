@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { Card } from "./Card";
+import React, { useState, useEffect, useRef } from "react";
 import type { FeedbackRecord, FeedbackStats, AirtableApiError } from "@sf-gov/shared";
 import { getFeedback, clearCache } from "@/api/airtable-client";
 import { Button } from "@/sidepanel/components/Button.tsx";
@@ -77,7 +76,8 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 					href={`https://airtable.com/appo4SjothLkSxmbG/tblbhivrMRm5X8eSU/viwgRjwYR6z9CsRc2/${record.id}`}
 					target="_blank"
 					rel="noopener noreferrer"
-					title="View record in Airtable"
+					title=""
+					className="text-gray-400 no-underline cursor-default"
 				>
 					{record.submissionId}
 				</a>
@@ -86,16 +86,31 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 	);
 };
 
+const STORAGE_KEY = "feedbackCardExpanded";
+
 export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
 	const [stats, setStats] = useState<FeedbackStats | null>(null);
 	const [error, setError] = useState<AirtableApiError | null>(null);
-	const [isLoading, setIsLoading] = useState<boolean>(true);
+	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+		return localStorage.getItem(STORAGE_KEY) === "true";
+	});
+	const hasFetchedRef = useRef<string | null>(null);
 
-	// fetch feedback when pagePath changes
+	// fetch feedback when expanded and pagePath changes (or first expansion)
 	useEffect(() => {
-		loadFeedback();
-	}, [pagePath]);
+		if (isExpanded && hasFetchedRef.current !== pagePath) {
+			hasFetchedRef.current = pagePath;
+			loadFeedback();
+		}
+	}, [isExpanded, pagePath]);
+
+	const toggleExpanded = () => {
+		const newExpanded = !isExpanded;
+		setIsExpanded(newExpanded);
+		localStorage.setItem(STORAGE_KEY, String(newExpanded));
+	};
 
 	const loadFeedback = async () => {
 		setIsLoading(true);
@@ -116,24 +131,23 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const handleRetry = () => {
 		// clear cache and refetch
 		clearCache(pagePath);
+		hasFetchedRef.current = null;
 		loadFeedback();
 	};
 
-	// loading state
-	if (isLoading) {
-		return (
-			<Card title="User Feedback">
+	const renderContent = () => {
+		// loading state
+		if (isLoading) {
+			return (
 				<div className="flex items-center justify-center py-8">
 					<div className="text-sm text-gray-500">Loading feedback...</div>
 				</div>
-			</Card>
-		);
-	}
+			);
+		}
 
-	// error state
-	if (error) {
-		return (
-			<Card title="User Feedback">
+		// error state
+		if (error) {
+			return (
 				<div className="space-y-3">
 					<div className="text-sm text-red-600">
 						<p className="font-medium">{error.message}</p>
@@ -149,24 +163,20 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 						</Button>
 					)}
 				</div>
-			</Card>
-		);
-	}
+			);
+		}
 
-	// no feedback available
-	if (feedback.length === 0) {
-		return (
-			<Card title="User Feedback">
+		// no feedback available
+		if (feedback.length === 0) {
+			return (
 				<div className="text-sm text-gray-500 italic">
 					No feedback submitted for this page yet.
 				</div>
-			</Card>
-		);
-	}
+			);
+		}
 
-	// display feedback
-	return (
-		<Card title="User Feedback">
+		// display feedback
+		return (
 			<div className="space-y-4">
 				{stats && stats.total > 0 && (
 					<div className="bg-gray-50 p-3 rounded-md mb-4 border border-gray-100">
@@ -187,6 +197,30 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 					<FeedbackItem key={record.id} record={record} />
 				))}
 			</div>
-		</Card>
+		);
+	};
+
+	return (
+		<div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+			<button
+				onClick={toggleExpanded}
+				className="flex items-center justify-between w-full text-left cursor-pointer"
+			>
+				<h2 className="text-lg font-semibold text-gray-900">User Feedback</h2>
+				<svg
+					className={`w-5 h-5 text-gray-500 hover:text-gray-700 transition-all duration-200 ${isExpanded ? "rotate-180" : ""}`}
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+			{isExpanded && (
+				<div className="mt-3">
+					{renderContent()}
+				</div>
+			)}
+		</div>
 	);
 };

@@ -120,6 +120,7 @@ export default function App()
 				)}
 				<PageHeader title={pageData.title} />
 				<EditLinkCard pageId={pageData.id} />
+				<FeedbackCard pagePath={pagePath} />
 				<MetadataCard
 					primaryAgency={pageData.primaryAgency}
 					contentType={pageData.contentType}
@@ -129,11 +130,10 @@ export default function App()
 				{pageData.formConfirmation && (
 					<FormConfirmationCard formConfirmation={pageData.formConfirmation} currentUrl={currentUrl} />
 				)}
-				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
-				<FeedbackCard pagePath={pagePath} />
 				{/*<A11yCheckCard />*/}
 				<LinkCheckerCard pageUrl={currentUrl} />
+				<TranslationsCard translations={pageData.translations} />
 			</div>
 		</Container>
 	);
