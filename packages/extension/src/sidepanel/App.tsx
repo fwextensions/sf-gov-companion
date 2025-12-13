@@ -9,7 +9,8 @@ import { MediaAssetsCard } from "./components/MediaAssetsCard";
 import { FormConfirmationCard } from "./components/FormConfirmationCard";
 import { PreviewBanner } from "./components/PreviewBanner";
 import { FeedbackCard } from "./components/FeedbackCard";
-import { A11yCheckCard } from "./components/A11yCheckCard";
+//import { A11yCheckCard } from "./components/A11yCheckCard";
+import { LinkCheckerCard } from "./components/LinkCheckerCard";
 
 const Container = ({ children }: { children: React.ReactNode }) => (
 	<div className="min-h-screen p-4 bg-gray-50">
@@ -131,7 +132,8 @@ export default function App()
 				<TranslationsCard translations={pageData.translations} />
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
 				<FeedbackCard pagePath={pagePath} />
-				<A11yCheckCard />
+				{/*<A11yCheckCard />*/}
+				<LinkCheckerCard pageUrl={currentUrl} />
 			</div>
 		</Container>
 	);
