@@ -17,7 +17,7 @@ export const TranslationsCard: React.FC<TranslationsCardProps> = ({ translations
   }
 
   return (
-    <Card title="Translations">
+    <Card title="Translations" collapsible>
       <ul className="space-y-2">
         {translations.map((translation) => (
           <li key={translation.pageId} className="flex items-center gap-3">

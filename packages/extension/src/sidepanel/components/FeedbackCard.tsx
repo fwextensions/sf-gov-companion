@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import type { FeedbackRecord, FeedbackStats, AirtableApiError } from "@sf-gov/shared";
 import { getFeedback, clearCache } from "@/api/airtable-client";
 import { Button } from "@/sidepanel/components/Button.tsx";
+import { Card } from "@/sidepanel/components/Card.tsx";
 
 interface FeedbackCardProps {
 	pagePath: string;
@@ -86,7 +87,7 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 	);
 };
 
-const STORAGE_KEY = "feedbackCardExpanded";
+const CARD_TITLE = "User Feedback";
 
 export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
@@ -94,7 +95,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const [error, setError] = useState<AirtableApiError | null>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [isExpanded, setIsExpanded] = useState<boolean>(() => {
-		return localStorage.getItem(STORAGE_KEY) === "true";
+		return localStorage.getItem(`card_${CARD_TITLE.replace(/\s+/g, "_")}_expanded`) === "true";
 	});
 	const hasFetchedRef = useRef<string | null>(null);
 
@@ -106,10 +107,8 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 		}
 	}, [isExpanded, pagePath]);
 
-	const toggleExpanded = () => {
-		const newExpanded = !isExpanded;
-		setIsExpanded(newExpanded);
-		localStorage.setItem(STORAGE_KEY, String(newExpanded));
+	const handleExpandedChange = (expanded: boolean) => {
+		setIsExpanded(expanded);
 	};
 
 	const loadFeedback = async () => {
@@ -201,26 +200,8 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	};
 
 	return (
-		<div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-			<button
-				onClick={toggleExpanded}
-				className="flex items-center justify-between w-full text-left cursor-pointer"
-			>
-				<h2 className="text-lg font-semibold text-gray-900">User Feedback</h2>
-				<svg
-					className={`w-5 h-5 text-gray-500 hover:text-gray-700 transition-all duration-200 ${isExpanded ? "rotate-180" : ""}`}
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-				</svg>
-			</button>
-			{isExpanded && (
-				<div className="mt-3">
-					{renderContent()}
-				</div>
-			)}
-		</div>
+		<Card title={CARD_TITLE} collapsible onExpandedChange={handleExpandedChange}>
+			{renderContent()}
+		</Card>
 	);
 };
