@@ -1,4 +1,4 @@
-# SF.gov Companion Extension
+# Karl Jr. (SF.gov Companion Extension)
 
 ![Icon](./packages/extension/src/img/favicon-128.png)
 
