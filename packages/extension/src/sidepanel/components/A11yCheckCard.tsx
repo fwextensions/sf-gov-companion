@@ -112,7 +112,7 @@ export function A11yCheckCard()
 	};
 
 	return (
-		<Card title="Accessibility Check">
+		<Card title="Accessibility Check" collapsible={hasRun}>
 			<Button
 				onClick={handleRunCheck}
 				disabled={isLoading}

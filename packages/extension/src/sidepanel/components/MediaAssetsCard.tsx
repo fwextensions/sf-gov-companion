@@ -33,7 +33,7 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 
 	if (!hasImages && !hasFiles) {
 		return (
-			<Card title="Media Assets">
+			<Card title="Images and Files">
 				<p className="text-sm text-gray-500 italic">No media assets
 					available</p>
 			</Card>
@@ -41,7 +41,7 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 	}
 
 	return (
-		<Card title="Media Assets">
+		<Card title="Images and Files">
 			<div className="space-y-4">
 				{/* Images Section */}
 				<div>

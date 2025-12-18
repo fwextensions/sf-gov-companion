@@ -222,13 +222,13 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 	const issueCount = brokenCount + insecureCount;
 
 	return (
-		<Card title="Link Checker">
+		<Card title="Broken Link Finder">
 			<Button
 				onClick={handleRunCheck}
 				disabled={isLoading}
 				className="self-start"
 			>
-				{isLoading ? <RunningLabel checked={progress.checked} total={progress.total} /> : "Check Links"}
+				{isLoading ? <RunningLabel checked={progress.checked} total={progress.total} /> : "Run Check"}
 			</Button>
 
 			{error && (

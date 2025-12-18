@@ -33,7 +33,10 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 		: null;
 
 	return (
-		<Card title="Metadata">
+		<Card
+			title="Metadata"
+			subtitle="About this page"
+		>
 			<div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3">
 				<div className="text-sm text-gray-600">Content Type:</div>
 				<div className="text-sm font-medium text-gray-900">{formatContentType(

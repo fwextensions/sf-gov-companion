@@ -101,6 +101,7 @@ export function runA11yCheck(): A11yResult[]
 		return results;
 	}
 
+	//@ts-ignore
 	function findInaccessibleLinks(
 		doc: Document,
 		url: string
@@ -354,13 +355,13 @@ export function runA11yCheck(): A11yResult[]
 	const results: A11yResult[] = [];
 
 	// Only running checks that return actual issues/errors
-	// results.push(...analyzeTables(document, url)); // Info only
-	results.push(...findInaccessibleLinks(document, url));
-	// results.push(...extractPdfLinks(document, url)); // Warning/Info
-	// results.push(...findImagesWithAlt(document, url)); // Good info
+	results.push(...analyzeTables(document, url)); // Info only
+//	results.push(...findInaccessibleLinks(document, url));
+	results.push(...extractPdfLinks(document, url)); // Warning/Info
+	results.push(...findImagesWithAlt(document, url)); // Good info
 	results.push(...findImagesMissingAlt(document, url));
 	results.push(...checkHeadingHierarchy(document, url));
-	// results.push(...findOfficeLinks(document, url)); // Warning/Info
+	results.push(...findOfficeLinks(document, url)); // Warning/Info
 
 	return results;
 }

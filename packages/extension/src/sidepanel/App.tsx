@@ -9,7 +9,7 @@ import { MediaAssetsCard } from "./components/MediaAssetsCard";
 import { FormConfirmationCard } from "./components/FormConfirmationCard";
 import { PreviewBanner } from "./components/PreviewBanner";
 import { FeedbackCard } from "./components/FeedbackCard";
-//import { A11yCheckCard } from "./components/A11yCheckCard";
+import { A11yCheckCard } from "./components/A11yCheckCard";
 import { LinkCheckerCard } from "./components/LinkCheckerCard";
 
 const Container = ({ children }: { children: React.ReactNode }) => (
@@ -121,18 +121,18 @@ export default function App()
 				<PageHeader title={pageData.title} />
 				<EditLinkCard pageId={pageData.id} />
 				<FeedbackCard pagePath={pagePath} />
+				{pageData.formConfirmation && (
+					<FormConfirmationCard formConfirmation={pageData.formConfirmation} currentUrl={currentUrl} />
+				)}
+				<MediaAssetsCard images={pageData.images} files={pageData.files} />
+				<LinkCheckerCard pageUrl={currentUrl} />
+				<A11yCheckCard />
 				<MetadataCard
 					primaryAgency={pageData.primaryAgency}
 					contentType={pageData.contentType}
 					pageId={pageData.id}
 					schema={pageData.schema}
 				/>
-				{pageData.formConfirmation && (
-					<FormConfirmationCard formConfirmation={pageData.formConfirmation} currentUrl={currentUrl} />
-				)}
-				<MediaAssetsCard images={pageData.images} files={pageData.files} />
-				{/*<A11yCheckCard />*/}
-				<LinkCheckerCard pageUrl={currentUrl} />
 				<TranslationsCard translations={pageData.translations} />
 			</div>
 		</Container>

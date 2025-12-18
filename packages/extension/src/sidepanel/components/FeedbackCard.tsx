@@ -30,18 +30,22 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({ record }) => {
 	return (
 		<div className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
 			{/* header: date and helpfulness */}
-			<div className="flex items-center justify-between mb-2">
-				<div className="text-xs text-gray-500">
+			<div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+				<div className="">
 					{formatDate(record.submissionCreated)}
 				</div>
 				{record.wasHelpful && (
-					<div
-						className={`text-xs font-medium px-2 py-1 rounded ${record.wasHelpful === "yes"
-								? "bg-green-100 text-green-800"
-								: "bg-orange-100 text-orange-800"
-							}`}
-					>
-						{record.wasHelpful === "yes" ? "👍 Helpful" : "👎 Not Helpful"}
+					<div>
+						{/*User vote:*/}
+						<div
+							title="User's rating of this page"
+							className={`inline-block text-xs font-medium ml-2 px-2 py-1 rounded ${record.wasHelpful === "yes"
+									? "bg-green-100 text-green-800"
+									: "bg-orange-100 text-orange-800"
+								}`}
+						>
+							{record.wasHelpful === "yes" ? "👍 Helpful" : "👎 Not Helpful"}
+						</div>
 					</div>
 				)}
 			</div>
@@ -97,7 +101,9 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 	const [isExpanded, setIsExpanded] = useState<boolean>(() => {
 		return localStorage.getItem(`card_${CARD_TITLE.replace(/\s+/g, "_")}_expanded`) === "true";
 	});
+	const [showAll, setShowAll] = useState<boolean>(false);
 	const hasFetchedRef = useRef<string | null>(null);
+	const INITIAL_DISPLAY_COUNT = 5;
 
 	// fetch feedback when expanded and pagePath changes (or first expansion)
 	useEffect(() => {
@@ -178,7 +184,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 		return (
 			<div className="space-y-4">
 				{stats && stats.total > 0 && (
-					<div className="bg-gray-50 p-3 rounded-md mb-4 border border-gray-100">
+					<div className="bg-gray-50 p-3 rounded-md mb-6 border border-gray-100">
 						<div className="grid grid-cols-2 gap-4 text-center">
 							<div>
 								<div className="text-2xl font-bold text-gray-900">{stats.total}</div>
@@ -186,21 +192,32 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 							</div>
 							<div>
 								<div className="text-2xl font-bold text-gray-900">{stats.helpfulPercent}%</div>
-								<div className="text-xs text-gray-500 uppercase tracking-wide">Helpful</div>
+								<div className="text-xs text-gray-500 uppercase tracking-wide">Page Helpful?</div>
 							</div>
 						</div>
 					</div>
 				)}
 
-				{feedback.map((record) => (
+				{(showAll ? feedback : feedback.slice(0, INITIAL_DISPLAY_COUNT)).map((record) => (
 					<FeedbackItem key={record.id} record={record} />
 				))}
+
+				{!showAll && feedback.length > INITIAL_DISPLAY_COUNT && (
+					<Button onClick={() => setShowAll(true)}>
+						Show {feedback.length - INITIAL_DISPLAY_COUNT} more
+					</Button>
+				)}
 			</div>
 		);
 	};
 
 	return (
-		<Card title={CARD_TITLE} collapsible onExpandedChange={handleExpandedChange}>
+		<Card
+			title={CARD_TITLE}
+			subtitle="Comments and ratings about this page from the public"
+			collapsible
+			onExpandedChange={handleExpandedChange}
+		>
 			{renderContent()}
 		</Card>
 	);

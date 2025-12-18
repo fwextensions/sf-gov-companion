@@ -236,9 +236,9 @@ async function fetchAllAirtableFeedback(
 		notHelpfulPercent
 	};
 
-	// filter to records with text feedback, then take the 5 most recent
+	// filter to records with text feedback
 	const recordsWithDetails = allRecords.filter(record => record.fields.shareMoreDetails);
-	const recentRecords: FeedbackRecord[] = recordsWithDetails.slice(0, 5).map(record => ({
+	const recentRecords: FeedbackRecord[] = recordsWithDetails.map(record => ({
 		id: record.id,
 		submissionId: record.fields.submission_id,
 		submissionCreated: record.fields.submission_created,
