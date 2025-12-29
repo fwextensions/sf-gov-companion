@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
 
+@source "../**/*.{ts,tsx,html}";
+
 @theme {
   --font-roboto: "Roboto", system-ui, -apple-system, sans-serif;
   --font-slab: "Roboto Slab", system-ui, -apple-system, serif;
@@ -9,8 +11,6 @@
   --color-sfgov-blue-hover: #001d4e;
   --color-sfgov-blue-text: #1b519e;
 }
-
-@source "../**/*.{ts,tsx,html}";
 
 /* Basic styles for React app */
 @layer base {
@@ -21,7 +21,8 @@
   }
 
   body {
-    font-family: var(--font-roboto);
+    font-family: var(--font-roboto) !important;
+		font-size: 1em !important;
   }
 
   h1, h2, h3, h4, h5, h6 {

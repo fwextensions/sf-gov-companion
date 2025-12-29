@@ -32,7 +32,7 @@ const RunningLabel = () => (
 const Results = ({ results }: { results: A11yResult[] }) => (
 	<div className="mt-4 space-y-3">
 		<div className="text-sm text-gray-500 font-medium">
-			Found {results.length} issue{results.length === 1 ? "" : "s"}
+			Found {results.length} issue{results.length === 1 ? "" : "s"}:
 		</div>
 		<div className="space-y-2 pr-1">
 			{results.map((result, index) => (
@@ -126,6 +126,12 @@ export function A11yCheckCard()
 					{error}
 				</div>
 			)}
+
+			{hasRun &&
+				<div className="mt-4 text-sm">
+					Remember to <a href="https://sfdigitalservices.gitbook.io/digital-accessibility-for-sf.gov-editors/page-content" target="_blank">perform manual tests</a> to confirm accessibility.
+				</div>
+			}
 
 			{hasRun && results.length === 0 && !error && (
 				<div className="mt-4 p-3 bg-green-50 text-green-700 text-sm rounded border border-green-100">

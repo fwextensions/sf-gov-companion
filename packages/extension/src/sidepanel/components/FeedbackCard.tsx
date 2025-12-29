@@ -190,7 +190,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 								<div className="text-2xl font-bold text-gray-900">{stats.total}</div>
 								<div className="text-xs text-gray-500 uppercase tracking-wide">Total Feedback</div>
 							</div>
-							<div>
+							<div title="Average helpfulness rating on sf.gov is 25%">
 								<div className="text-2xl font-bold text-gray-900">{stats.helpfulPercent}%</div>
 								<div className="text-xs text-gray-500 uppercase tracking-wide">Page Helpful?</div>
 							</div>
