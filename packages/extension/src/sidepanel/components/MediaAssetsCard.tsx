@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "./Card";
 import type { MediaAsset } from "@sf-gov/shared";
 import { EditIcon } from "@/sidepanel/components/EditIcon.tsx";
 import { OpenIcon } from "@/sidepanel/components/OpenIcon.tsx";
+import { extractPdfLinks, type LinkInfo } from "@/lib/link-check";
 
 interface MediaAssetsCardProps {
 	images: MediaAsset[];
@@ -15,6 +16,31 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 }) => {
 	const hasImages = images.length > 0;
 	const hasFiles = files.length > 0;
+	const [pdfLinks, setPdfLinks] = useState<LinkInfo[]>([]);
+	const [isLoadingPdfs, setIsLoadingPdfs] = useState(true);
+
+	useEffect(() => {
+		const fetchPdfLinks = async () => {
+			try {
+				const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+				if (tabs[0]?.id) {
+					const results = await chrome.scripting.executeScript({
+						target: { tabId: tabs[0].id },
+						func: extractPdfLinks,
+					});
+					if (results[0]?.result) {
+						setPdfLinks(results[0].result);
+					}
+				}
+			} catch (error) {
+				console.error("Failed to extract PDF links:", error);
+			} finally {
+				setIsLoadingPdfs(false);
+			}
+		};
+
+		fetchPdfLinks();
+	}, []);
 
 	const handleImageClick = async (imageId: number) => {
 		const adminUrl = `https://api.sf.gov/admin/images/${imageId}/`;
@@ -31,7 +57,7 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 		}
 	};
 
-	if (!hasImages && !hasFiles) {
+	if (!hasImages && !hasFiles && pdfLinks.length === 0 && !isLoadingPdfs) {
 		return (
 			<Card title="Images and Files">
 				<p className="text-sm text-gray-500 italic">No media assets
@@ -102,6 +128,34 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 						</ul>
 					) : (
 						<p className="text-sm text-gray-500 italic">No files</p>
+					)}
+				</div>
+
+				{/* PDF Links Section */}
+				<div>
+					<h3 className="text-sm font-semibold text-gray-700 mb-2">PDF Links</h3>
+					{isLoadingPdfs ? (
+						<p className="text-sm text-gray-500 italic">Loading...</p>
+					) : pdfLinks.length > 0 ? (
+						<ul className="space-y-2">
+							{pdfLinks.map((pdf, index) => (
+								<li key={index}>
+									<a
+										href={pdf.url}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="text-sm inline-flex items-center gap-2"
+									>
+										<span className="flex flex-col items-start">
+											<span>{pdf.text || "Untitled PDF"}</span>
+											<span className="text-xs text-gray-500 break-all">{decodeURIComponent(new URL(pdf.url).pathname.split("/").pop() || "")}</span>
+										</span>
+									</a>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="text-sm text-gray-500 italic">No PDF links found</p>
 					)}
 				</div>
 			</div>

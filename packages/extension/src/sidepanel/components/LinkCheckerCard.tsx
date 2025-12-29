@@ -114,7 +114,7 @@ const Results = ({ results, totalChecked }: { results: LinkCheckResult[]; totalC
 	return (
 		<div className="mt-4 space-y-3">
 			<div className="text-sm text-gray-500 font-medium">
-				Checked {totalChecked} link{totalChecked === 1 ? "" : "s"}, found {issueCount} issue{issueCount === 1 ? "" : "s"}
+				Checked {totalChecked} link{totalChecked === 1 ? "" : "s"}, found {issueCount} issue{issueCount === 1 ? "" : "s"}:
 			</div>
 			{brokenLinks.length > 0 && (
 				<div className="space-y-2 pr-1">

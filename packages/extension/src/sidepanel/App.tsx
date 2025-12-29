@@ -20,7 +20,19 @@ const Container = ({ children }: { children: React.ReactNode }) => (
 
 export default function App()
 {
-	const { pageData, error, isLoading, isOnSfGov, isAdminPage, isPreviewMode, previewUrl, previewTimestamp, currentUrl, pagePath, retry } = useSfGovPage();
+	const {
+		pageData,
+		error,
+		isLoading,
+		isOnSfGov,
+		isAdminPage,
+		isPreviewMode,
+		previewUrl,
+		previewTimestamp,
+		currentUrl,
+		pagePath,
+		retry
+	} = useSfGovPage();
 
 	if (isLoading) {
 		return (

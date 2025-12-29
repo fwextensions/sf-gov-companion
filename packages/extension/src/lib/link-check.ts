@@ -25,41 +25,69 @@ export async function checkLinkInPage(url: string): Promise<{ status: "ok" | "br
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-			const response = await fetch(fetchUrl, {
-				method: "HEAD",
-				signal: controller.signal,
-				redirect: "follow",
-				mode: "no-cors",
-			});
+			// normalize sf.gov URLs to match current page origin to avoid CORS issues
+			// e.g., if on www.sf.gov, convert sf.gov links to www.sf.gov
+			let normalizedUrl = fetchUrl;
+			const currentOrigin = window.location.origin;
+			const urlObj = new URL(fetchUrl);
+
+			// handle sf.gov <-> www.sf.gov mismatch
+			if (currentOrigin === "https://www.sf.gov" && urlObj.origin === "https://sf.gov") {
+				urlObj.hostname = "www.sf.gov";
+				normalizedUrl = urlObj.href;
+			} else if (currentOrigin === "https://sf.gov" && urlObj.origin === "https://www.sf.gov") {
+				urlObj.hostname = "sf.gov";
+				normalizedUrl = urlObj.href;
+			}
+
+			let response: Response;
+			let wasRedirected = false;
+
+			// try CORS mode with follow - this lets browser handle redirects
+			// and we can see the final status code
+			try {
+				response = await fetch(normalizedUrl, {
+					method: "HEAD",
+					signal: controller.signal,
+					redirect: "follow",
+					mode: "cors",
+				});
+				// check if we were redirected by comparing URLs
+				wasRedirected = response.url !== normalizedUrl;
+			} catch (corsErr) {
+				// CORS failed, fall back to no-cors
+				response = await fetch(normalizedUrl, {
+					method: "HEAD",
+					signal: controller.signal,
+					redirect: "follow",
+					mode: "no-cors",
+				});
+			}
 
 			clearTimeout(timeoutId);
 
-			// with no-cors mode, we get an opaque response but can still detect if the request succeeded
-			// opaque responses have type "opaque" and status 0, but the request did complete
+			// with no-cors mode, we get an opaque response - can't see status
 			if (response.type === "opaque") {
 				return { status: "ok" };
 			}
 
 			const statusCode = response.status;
 
+			// with redirect: "follow", we get the final destination's status
 			if (statusCode >= 200 && statusCode < 300) {
+				// if we were redirected, report as redirect (but destination is ok)
+				if (wasRedirected) {
+					return { status: "redirect", statusCode };
+				}
 				return { status: "ok", statusCode };
 			}
 
-			if (response.type === "opaqueredirect" || (statusCode >= 300 && statusCode < 400)) {
-				return { status: "redirect", statusCode };
-			}
-
+			// 4xx or 5xx = broken link
 			return { status: "broken", statusCode };
 		} catch (err) {
 			if (err instanceof Error) {
 				if (err.name === "AbortError") {
 					return { status: "timeout", error: "Request timed out" };
-				}
-				// cross-origin redirects get blocked but the link itself works
-				if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-					// the link likely works but redirects to a different domain
-					return { status: "ok" };
 				}
 				// network errors (including blocked requests) throw TypeError
 				return { status: "error", error: err.message };
@@ -116,6 +144,40 @@ export function extractContentLinks(): LinkInfo[]
 			href.startsWith("tel:") ||
 			href.startsWith("#")
 		) {
+			return;
+		}
+
+		// deduplicate
+		if (seen.has(href)) {
+			return;
+		}
+		seen.add(href);
+
+		results.push({
+			url: href,
+			text: anchor.textContent?.trim() || "",
+		});
+	});
+
+	return results;
+}
+
+/**
+ * Extracts all PDF links from the page.
+ * This function is designed to be injected into the page context.
+ */
+export function extractPdfLinks(): LinkInfo[]
+{
+	const links = document.querySelectorAll("a[href]");
+	const seen = new Set<string>();
+	const results: LinkInfo[] = [];
+
+	links.forEach((link) => {
+		const anchor = link as HTMLAnchorElement;
+		const href = anchor.href;
+
+		// check if the link points to a PDF file
+		if (!href || !href.toLowerCase().endsWith(".pdf")) {
 			return;
 		}
 
