@@ -6,7 +6,7 @@ export interface LinkInfo {
 export interface LinkCheckResult {
 	url: string;
 	text: string;
-	status: "ok" | "broken" | "redirect" | "timeout" | "error" | "insecure";
+	status: "ok" | "broken" | "redirect" | "timeout" | "error" | "insecure" | "unverifiable";
 	statusCode?: number;
 	error?: string;
 }
@@ -17,9 +17,29 @@ export interface LinkCheckResult {
  * same-origin privileges and avoids CORS issues.
  * NOTE: This function must be self-contained since it's injected via chrome.scripting.executeScript
  */
-export async function checkLinkInPage(url: string): Promise<{ status: "ok" | "broken" | "redirect" | "timeout" | "error" | "insecure"; statusCode?: number; error?: string }>
+export async function checkLinkInPage(url: string): Promise<{ status: "ok" | "broken" | "redirect" | "timeout" | "error" | "insecure" | "unverifiable"; statusCode?: number; error?: string }>
 {
-	async function doFetch(fetchUrl: string): Promise<{ status: "ok" | "broken" | "redirect" | "timeout" | "error"; statusCode?: number; error?: string }>
+	// domains that should always be considered valid, even if they return 404 without proper auth
+	const ALWAYS_VALID_DOMAINS = [
+		"twitter.com",
+		"x.com",
+	];
+
+	// check if URL is from an always-valid domain
+	try {
+		const urlObj = new URL(url);
+		const hostname = urlObj.hostname.toLowerCase();
+
+		if (ALWAYS_VALID_DOMAINS.some((domain) =>
+			hostname === domain || hostname.endsWith(`.${domain}`)
+		)) {
+			return { status: "ok" };
+		}
+	} catch {
+		// if URL parsing fails, continue with normal checking
+	}
+
+	async function doFetch(fetchUrl: string): Promise<{ status: "ok" | "broken" | "redirect" | "timeout" | "error" | "unverifiable"; statusCode?: number; error?: string }>
 	{
 		try {
 			const controller = new AbortController();
@@ -56,17 +76,23 @@ export async function checkLinkInPage(url: string): Promise<{ status: "ok" | "br
 				wasRedirected = response.url !== normalizedUrl;
 			} catch (corsErr) {
 				// CORS failed, fall back to no-cors
-				response = await fetch(normalizedUrl, {
-					method: "HEAD",
-					signal: controller.signal,
-					redirect: "follow",
-					mode: "no-cors",
-				});
+				try {
+					response = await fetch(normalizedUrl, {
+						method: "HEAD",
+						signal: controller.signal,
+						redirect: "follow",
+						mode: "no-cors",
+					});
+				} catch (noCorsErr) {
+					// both CORS and no-cors failed - truly unverifiable
+					return { status: "unverifiable", error: "Failed to fetch" };
+				}
 			}
 
 			clearTimeout(timeoutId);
 
 			// with no-cors mode, we get an opaque response - can't see status
+			// if no-cors succeeded, treat as ok (site is working, just has CORS restrictions)
 			if (response.type === "opaque") {
 				return { status: "ok" };
 			}
@@ -89,10 +115,10 @@ export async function checkLinkInPage(url: string): Promise<{ status: "ok" | "br
 				if (err.name === "AbortError") {
 					return { status: "timeout", error: "Request timed out" };
 				}
-				// network errors (including blocked requests) throw TypeError
-				return { status: "error", error: err.message };
+				// CORS/CORP errors and other fetch failures - site may be working but unverifiable
+				return { status: "unverifiable", error: err.message };
 			}
-			return { status: "error", error: "Unknown error" };
+			return { status: "unverifiable", error: "Unknown error" };
 		}
 	}
 
@@ -101,17 +127,7 @@ export async function checkLinkInPage(url: string): Promise<{ status: "ok" | "br
 	const isHttpsPage = window.location.protocol === "https:";
 
 	if (isHttpLink && isHttpsPage) {
-		// try the https version of the URL first
-		const httpsUrl = url.replace("http://", "https://");
-		try {
-			const result = await doFetch(httpsUrl);
-			if (result.status === "ok") {
-				return result;
-			}
-		} catch {
-			// https version failed, fall through to mark as insecure
-		}
-		// can't check http links from https pages due to mixed content blocking
+		// always flag http links on https pages, even if https version works
 		return { status: "insecure", error: "HTTP link on HTTPS page" };
 	}
 
@@ -195,4 +211,3 @@ export function extractPdfLinks(): LinkInfo[]
 
 	return results;
 }
-

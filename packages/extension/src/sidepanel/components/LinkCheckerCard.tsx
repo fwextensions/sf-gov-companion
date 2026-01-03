@@ -81,12 +81,14 @@ const IssueItem = ({ result }: { result: LinkCheckResult }) => (
 				result.status === "broken" ? "text-red-600" :
 				result.status === "timeout" ? "text-yellow-600" :
 				result.status === "insecure" ? "text-amber-600" :
+				result.status === "unverifiable" ? "text-purple-600" :
 				"text-orange-600"
 			}>
 				{result.status === "broken" && `${result.statusCode || "Error"}`}
 				{result.status === "timeout" && "Timeout"}
 				{result.status === "error" && "Error"}
 				{result.status === "insecure" && "Insecure"}
+				{result.status === "unverifiable" && "Unverifiable"}
 			</span>
 		</div>
 		{result.text && (
@@ -109,7 +111,8 @@ const IssueItem = ({ result }: { result: LinkCheckResult }) => (
 const Results = ({ results, totalChecked }: { results: LinkCheckResult[]; totalChecked: number }) => {
 	const brokenLinks = results.filter(r => r.status === "broken" || r.status === "timeout" || r.status === "error");
 	const insecureLinks = results.filter(r => r.status === "insecure");
-	const issueCount = brokenLinks.length + insecureLinks.length;
+	const unverifiableLinks = results.filter(r => r.status === "unverifiable");
+	const issueCount = brokenLinks.length + insecureLinks.length + unverifiableLinks.length;
 
 	return (
 		<div className="mt-4 space-y-3">
@@ -131,6 +134,18 @@ const Results = ({ results, totalChecked }: { results: LinkCheckResult[]; totalC
 					<div className="space-y-2 pr-1">
 						{insecureLinks.map((result, index) => (
 							<IssueItem key={`insecure-${index}`} result={result} />
+						))}
+					</div>
+				</>
+			)}
+			{unverifiableLinks.length > 0 && (
+				<>
+					<div className="text-sm text-purple-600 font-medium mt-3">
+						{unverifiableLinks.length} unverifiable link{unverifiableLinks.length === 1 ? "" : "s"} (check manually)
+					</div>
+					<div className="space-y-2 pr-1">
+						{unverifiableLinks.map((result, index) => (
+							<IssueItem key={`unverifiable-${index}`} result={result} />
 						))}
 					</div>
 				</>
@@ -219,7 +234,8 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 
 	const brokenCount = results.filter(r => r.status === "broken" || r.status === "timeout" || r.status === "error").length;
 	const insecureCount = results.filter(r => r.status === "insecure").length;
-	const issueCount = brokenCount + insecureCount;
+	const unverifiableCount = results.filter(r => r.status === "unverifiable").length;
+	const issueCount = brokenCount + insecureCount + unverifiableCount;
 
 	return (
 		<Card title="Broken Link Finder">

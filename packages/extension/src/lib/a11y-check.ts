@@ -357,7 +357,7 @@ export function runA11yCheck(): A11yResult[]
 	// Only running checks that return actual issues/errors
 	results.push(...analyzeTables(document, url)); // Info only
 //	results.push(...findInaccessibleLinks(document, url));
-	results.push(...extractPdfLinks(document, url)); // Warning/Info
+//	results.push(...extractPdfLinks(document, url)); // Warning/Info
 //	results.push(...findImagesWithAlt(document, url)); // Good info
 	results.push(...findImagesMissingAlt(document, url));
 	results.push(...checkHeadingHierarchy(document, url));
