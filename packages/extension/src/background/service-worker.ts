@@ -4,6 +4,7 @@
  * Forwards messages from content scripts to side panel
  */
 
+import "@/lib/console.ts";
 import { extractPageSlug } from "@/lib/urlUtils.ts";
 import { findPageBySlug } from "@/api/wagtail-client.ts";
 

@@ -385,7 +385,7 @@ function extractFiles(pageData: any): MediaAsset[] {
         files.push({
           id: docData.id,
           title: docData.title || docData.filename || '',
-          url: docData.url || docData.download_url || '',
+          url: docData.file || docData.url || docData.download_url || '',
           type: 'document',
           filename: docData.filename
         });
@@ -398,7 +398,7 @@ function extractFiles(pageData: any): MediaAsset[] {
         files.push({
           id: obj.document.id,
           title: obj.document.title || obj.document.filename || '',
-          url: obj.document.url || obj.document.download_url || '',
+          url: obj.document.file || obj.document.url || obj.document.download_url || '',
           type: 'document',
           filename: obj.document.filename
         });

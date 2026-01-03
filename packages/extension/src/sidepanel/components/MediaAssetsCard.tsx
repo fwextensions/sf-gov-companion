@@ -29,7 +29,11 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 						func: extractPdfLinks,
 					});
 					if (results[0]?.result) {
-						setPdfLinks(results[0].result);
+						const allPdfLinks = results[0].result;
+						const fileUrls = new Set(files.map(f => f.url));
+						const dedupedPdfLinks = allPdfLinks.filter(pdf => !fileUrls.has(pdf.url));
+						
+						setPdfLinks(dedupedPdfLinks);
 					}
 				}
 			} catch (error) {
@@ -40,7 +44,7 @@ export const MediaAssetsCard: React.FC<MediaAssetsCardProps> = ({
 		};
 
 		fetchPdfLinks();
-	}, []);
+	}, [files]);
 
 	const handleImageClick = async (imageId: number) => {
 		const adminUrl = `https://api.sf.gov/admin/images/${imageId}/`;

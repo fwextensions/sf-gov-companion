@@ -7,7 +7,10 @@ import tailwindcss from '@tailwindcss/vite'
 import manifest from './manifest.config.js'
 import { version } from './package.json'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+	define: {
+		__DEV__: mode === 'development',
+	},
 	resolve: {
 		alias: {
 			'@': `${path.resolve(__dirname, 'src')}`,
@@ -26,4 +29,4 @@ export default defineConfig({
 			],
 		},
 	},
-})
+}))

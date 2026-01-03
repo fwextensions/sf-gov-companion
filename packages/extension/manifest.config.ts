@@ -5,7 +5,7 @@ export default defineManifest({
 	manifest_version: 3,
 	name: "Karl Jr.",
 	version: pkg.version,
-	description: "Browser extension that provides information about SF.gov pages, with links to Karl for editing",
+	description: "Browser extension that provides information about SF.gov pages, with links to the Karl CMS for editing",
 	icons: {
 		"16": "src/img/favicon-16.png",
 		"32": "src/img/favicon-32.png",
