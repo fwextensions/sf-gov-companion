@@ -82,7 +82,7 @@ async function updateContextMenuVisibility(url: string): Promise<void> {
 /**
  * Set up event listeners when the service worker is installed
  */
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
 	// disable side panel by default for all tabs
 	void chrome.sidePanel.setOptions({ enabled: false });
 	
@@ -100,6 +100,19 @@ chrome.runtime.onInstalled.addListener(() => {
       "http://*.sf.gov/*"
     ]
   });
+
+	// check all existing tabs and enable side panel for sf.gov domains
+	try {
+		const tabs = await chrome.tabs.query({});
+		for (const tab of tabs) {
+			if (tab.id && tab.url) {
+				await updateSidePanelForTab(tab.id, tab.url);
+				await updateContextMenuVisibility(tab.url);
+			}
+		}
+	} catch (err) {
+		console.error("Error updating existing tabs on install:", err);
+	}
 });
 
 // Add a listener for when the menu item is clicked
