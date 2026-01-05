@@ -83,9 +83,6 @@ All scripts are executed only on SF.gov domains and are used solely to analyze p
 #### sidePanel
 **Justification**: The core interface of the extension. The side panel displays page information, metadata, and administrative tools when users click the toolbar button while on SF.gov pages. This provides a non-intrusive way to access content management information without navigating away from the page being reviewed.
 
-#### storage
-**Justification**: Used to cache page metadata and user preferences locally to improve performance and reduce API calls to the Wagtail CMS. All stored data is limited to page information retrieved from SF.gov APIs and basic extension settings. No personal user data is stored.
-
 #### tabs
 **Justification**: Required to:
 1. Detect which tab is currently active to display relevant page information in the side panel

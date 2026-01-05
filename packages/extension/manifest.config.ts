@@ -15,7 +15,6 @@ export default defineManifest({
 	permissions: [
 		"sidePanel",
 		"tabs",
-		"storage",
 		"scripting",
 		"cookies",
 		"contextMenus",
