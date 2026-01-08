@@ -171,8 +171,8 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 			);
 		}
 
-		// no feedback available
-		if (feedback.length === 0) {
+		// no feedback available at all
+		if (!stats || stats.total === 0) {
 			return (
 				<div className="text-sm text-gray-500 italic">
 					No feedback submitted for this page yet.
@@ -183,29 +183,35 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ pagePath }) => {
 		// display feedback
 		return (
 			<div className="space-y-4">
-				{stats && stats.total > 0 && (
-					<div className="bg-gray-50 p-3 rounded-md mb-6 border border-gray-100">
-						<div className="grid grid-cols-2 gap-4 text-center">
-							<div>
-								<div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-								<div className="text-xs text-gray-500 uppercase tracking-wide">Total Feedback</div>
-							</div>
-							<div title="Average helpfulness rating on sf.gov is 25%">
-								<div className="text-2xl font-bold text-gray-900">{stats.helpfulPercent}%</div>
-								<div className="text-xs text-gray-500 uppercase tracking-wide">Page Helpful?</div>
-							</div>
+				<div className="bg-gray-50 p-3 rounded-md mb-6 border border-gray-100">
+					<div className="grid grid-cols-2 gap-4 text-center">
+						<div>
+							<div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+							<div className="text-xs text-gray-500 uppercase tracking-wide">Total Feedback</div>
+						</div>
+						<div title="Average helpfulness rating on sf.gov is 25%">
+							<div className="text-2xl font-bold text-gray-900">{stats.helpfulPercent}%</div>
+							<div className="text-xs text-gray-500 uppercase tracking-wide">Page Helpful?</div>
 						</div>
 					</div>
-				)}
+				</div>
 
-				{(showAll ? feedback : feedback.slice(0, INITIAL_DISPLAY_COUNT)).map((record) => (
-					<FeedbackItem key={record.id} record={record} />
-				))}
+				{feedback.length === 0 ? (
+					<div className="text-sm text-gray-500 italic">
+						No detailed feedback comments available.
+					</div>
+				) : (
+					<>
+						{(showAll ? feedback : feedback.slice(0, INITIAL_DISPLAY_COUNT)).map((record) => (
+							<FeedbackItem key={record.id} record={record} />
+						))}
 
-				{!showAll && feedback.length > INITIAL_DISPLAY_COUNT && (
-					<Button onClick={() => setShowAll(true)}>
-						Show {feedback.length - INITIAL_DISPLAY_COUNT} more
-					</Button>
+						{!showAll && feedback.length > INITIAL_DISPLAY_COUNT && (
+							<Button onClick={() => setShowAll(true)}>
+								Show {feedback.length - INITIAL_DISPLAY_COUNT} more
+							</Button>
+						)}
+					</>
 				)}
 			</div>
 		);
