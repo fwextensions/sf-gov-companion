@@ -4,13 +4,13 @@ import { ErrorState } from "./components/ErrorState";
 import { PageHeader } from "./components/PageHeader";
 import { EditLinkCard } from "./components/EditLinkCard";
 import { MetadataCard } from "./components/MetadataCard";
-import { TranslationsCard } from "./components/TranslationsCard";
 import { MediaAssetsCard } from "./components/MediaAssetsCard";
 import { FormConfirmationCard } from "./components/FormConfirmationCard";
 import { PreviewBanner } from "./components/PreviewBanner";
 import { FeedbackCard } from "./components/FeedbackCard";
-import { A11yCheckCard } from "./components/A11yCheckCard";
 import { LinkCheckerCard } from "./components/LinkCheckerCard";
+//import { TranslationsCard } from "./components/TranslationsCard";
+//import { A11yCheckCard } from "./components/A11yCheckCard";
 
 const Container = ({ children }: { children: React.ReactNode }) => (
 	<div className="min-h-screen p-4 bg-gray-50">
@@ -138,14 +138,18 @@ export default function App()
 				)}
 				<MediaAssetsCard images={pageData.images} files={pageData.files} />
 				<LinkCheckerCard pageUrl={currentUrl} />
+{/*
 				<A11yCheckCard />
+*/}
 				<MetadataCard
 					primaryAgency={pageData.primaryAgency}
 					contentType={pageData.contentType}
 					pageId={pageData.id}
 					schema={pageData.schema}
 				/>
+{/*
 				<TranslationsCard translations={pageData.translations} />
+*/}
 			</div>
 		</Container>
 	);

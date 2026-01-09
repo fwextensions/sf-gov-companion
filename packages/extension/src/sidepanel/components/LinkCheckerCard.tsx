@@ -189,6 +189,7 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 
 	const handleRunCheck = async () => {
 		console.log("LinkCheckerCard: handleRunCheck called");
+		clearLinkCheckerCache(pageUrl);
 		setIsLoading(true);
 		setError(null);
 		setResults([]);
