@@ -3,7 +3,6 @@
  * Run with: npm run dev
  */
 import { createServer, IncomingMessage, ServerResponse } from "http";
-import { parse as parseUrl } from "url";
 
 // dynamically import handlers
 async function loadHandler(name: string) {
@@ -11,23 +10,42 @@ async function loadHandler(name: string) {
 	return mod.default;
 }
 
+// parse request body for POST requests
+async function parseBody(req: IncomingMessage): Promise<any> {
+	return new Promise((resolve) => {
+		let body = "";
+		req.on("data", (chunk) => { body += chunk; });
+		req.on("end", () => {
+			if (!body) return resolve(null);
+			try {
+				resolve(JSON.parse(body));
+			} catch {
+				resolve(body);
+			}
+		});
+	});
+}
+
 // convert Node req/res to Vercel-like objects
-function createVercelRequest(req: IncomingMessage, query: Record<string, string | string[] | undefined>) {
+function createVercelRequest(req: IncomingMessage, query: Record<string, string | string[] | undefined>, body: any) {
 	return {
 		method: req.method,
 		headers: req.headers,
 		query,
-		body: null,
+		body,
 	};
 }
 
 function createVercelResponse(res: ServerResponse) {
+	let headersSent = false;
 	const vercelRes: any = {
 		statusCode: 200,
 		_headers: {} as Record<string, string>,
 		setHeader(name: string, value: string) {
 			this._headers[name] = value;
-			res.setHeader(name, value);
+			if (!headersSent) {
+				res.setHeader(name, value);
+			}
 			return this;
 		},
 		status(code: number) {
@@ -35,29 +53,61 @@ function createVercelResponse(res: ServerResponse) {
 			return this;
 		},
 		json(data: any) {
-			res.writeHead(this.statusCode, { "Content-Type": "application/json", ...this._headers });
+			if (!headersSent) {
+				res.writeHead(this.statusCode, { "Content-Type": "application/json", ...this._headers });
+				headersSent = true;
+			}
 			res.end(JSON.stringify(data));
 			return this;
 		},
-		end() {
-			res.writeHead(this.statusCode, this._headers);
-			res.end();
+		// SSE support
+		flushHeaders() {
+			if (!headersSent) {
+				res.writeHead(this.statusCode, this._headers);
+				headersSent = true;
+			}
+		},
+		write(data: string) {
+			if (!headersSent) {
+				res.writeHead(this.statusCode, this._headers);
+				headersSent = true;
+			}
+			res.write(data);
 			return this;
+		},
+		end(data?: string) {
+			if (!headersSent) {
+				res.writeHead(this.statusCode, this._headers);
+				headersSent = true;
+			}
+			res.end(data);
+			return this;
+		},
+		// for disconnect detection
+		on(event: string, handler: () => void) {
+			res.on(event, handler);
+		},
+		off(event: string, handler: () => void) {
+			res.off(event, handler);
 		},
 	};
 	return vercelRes;
 }
 
+const PORT = 3000;
+
 const server = createServer(async (req, res) => {
 	const startTime = Date.now();
-	const parsed = parseUrl(req.url || "/", true);
-	const pathname = parsed.pathname || "/";
+	const url = new URL(req.url || "/", `http://localhost:${PORT}`);
+	const pathname = url.pathname;
+	const query: Record<string, string> = {};
+	url.searchParams.forEach((value, key) => { query[key] = value; });
 
 	// CORS preflight
 	const origin = req.headers.origin as string | undefined;
 	if (origin) {
 		res.setHeader("Access-Control-Allow-Origin", origin);
-		res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+		res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 		res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Wagtail-Session, X-SF-Gov-Extension");
 	}
 
@@ -70,6 +120,7 @@ const server = createServer(async (req, res) => {
 	// route to handlers
 	const routes: Record<string, string> = {
 		"/api/feedback": "feedback",
+		"/api/link-check": "link-check",
 		"/api/health": "health",
 		"/api/test": "test",
 	};
@@ -83,7 +134,8 @@ const server = createServer(async (req, res) => {
 
 	try {
 		const handler = await loadHandler(handlerName);
-		const vercelReq = createVercelRequest(req, parsed.query as Record<string, string>);
+		const body = req.method === "POST" ? await parseBody(req) : null;
+		const vercelReq = createVercelRequest(req, query, body);
 		const vercelRes = createVercelResponse(res);
 		await handler(vercelReq, vercelRes);
 		console.log(`${req.method} ${pathname} - ${Date.now() - startTime}ms`);
@@ -94,7 +146,6 @@ const server = createServer(async (req, res) => {
 	}
 });
 
-const PORT = 3000;
 server.listen(PORT, () => {
 	console.log(`Dev server running at http://localhost:${PORT}`);
 });

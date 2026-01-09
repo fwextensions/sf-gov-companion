@@ -4,3 +4,4 @@
 
 export * from "./wagtail";
 export * from "./airtable";
+export * from "./link-check";

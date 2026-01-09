@@ -1,78 +1,56 @@
 import { useState, useEffect } from "react";
-import { extractContentLinks, checkLinkInPage, type LinkInfo, type LinkCheckResult } from "../../lib/link-check";
+import { extractContentLinks, type LinkInfo } from "../../lib/link-check";
+import { LinkCheckClient } from "../../api/link-check-client";
 import { Button } from "./Button";
 import { Card } from "./Card";
+import {
+	type LinkCheckResult,
+	getCachedResults,
+	setCachedResults,
+	clearLinkCheckerCache,
+} from "../lib/link-checker-cache";
 
-interface LinkCheckerCacheEntry {
-	results: LinkCheckResult[];
-	timestamp: number;
-}
-
-const linkCheckerCache = new Map<string, LinkCheckerCacheEntry>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-function getCachedResults(pageUrl: string): LinkCheckResult[] | null
-{
-	const entry = linkCheckerCache.get(pageUrl);
-	if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
-		return entry.results;
-	}
-	return null;
-}
-
-function setCachedResults(pageUrl: string, results: LinkCheckResult[]): void
-{
-	linkCheckerCache.set(pageUrl, {
-		results,
-		timestamp: Date.now(),
-	});
-}
-
-export function clearLinkCheckerCache(pageUrl?: string): void
-{
-	if (pageUrl) {
-		linkCheckerCache.delete(pageUrl);
-	} else {
-		linkCheckerCache.clear();
-	}
-}
-
-async function checkLinkViaPageContext(tabId: number, url: string): Promise<LinkCheckResult>
-{
-	const results = await chrome.scripting.executeScript({
-		target: { tabId },
-		func: checkLinkInPage,
-		args: [url],
-	});
-	const response = results[0]?.result || { status: "error", error: "Script execution failed" };
-	return { url, text: "", ...response };
-}
-
-const RunningLabel = ({ checked, total }: { checked: number; total: number }) => (
-	<>
-		<svg
-			className="animate-spin h-4 w-4 text-white"
-			xmlns="http://www.w3.org/2000/svg"
-			fill="none"
-			viewBox="0 0 24 24"
-		>
-			<circle
-				className="opacity-25"
-				cx="12"
-				cy="12"
-				r="10"
-				stroke="currentColor"
-				strokeWidth="4"
-			></circle>
-			<path
-				className="opacity-75"
-				fill="currentColor"
-				d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-			></path>
-		</svg>
-		Checking {checked}/{total}...
-	</>
+const SpinnerIcon = () => (
+	<svg
+		className="animate-spin h-4 w-4 text-white"
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+	>
+		<circle
+			className="opacity-25"
+			cx="12"
+			cy="12"
+			r="10"
+			stroke="currentColor"
+			strokeWidth="4"
+		></circle>
+		<path
+			className="opacity-75"
+			fill="currentColor"
+			d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+		></path>
+	</svg>
 );
+
+const ProgressBar = ({ checked, total }: { checked: number; total: number }) => {
+	const percentage = total > 0 ? (checked / total) * 100 : 0;
+	
+	return (
+		<div className="mt-3">
+			<div className="flex justify-between text-sm text-gray-600 mb-1">
+				<span>Checking links...</span>
+				<span>{checked} / {total}</span>
+			</div>
+			<div className="w-full bg-gray-200 rounded-full h-2">
+				<div
+					className="bg-sfgov-blue h-2 rounded-full transition-all duration-300"
+					style={{ width: `${percentage}%` }}
+				></div>
+			</div>
+		</div>
+	);
+};
 
 const IssueItem = ({ result }: { result: LinkCheckResult }) => (
 	<div className="p-3 bg-gray-50 rounded border border-gray-100 text-sm">
@@ -80,15 +58,17 @@ const IssueItem = ({ result }: { result: LinkCheckResult }) => (
 			<span className={
 				result.status === "broken" ? "text-red-600" :
 				result.status === "timeout" ? "text-yellow-600" :
+				result.status === "warning" ? "text-orange-500" :
 				result.status === "insecure" ? "text-amber-600" :
-				result.status === "unverifiable" ? "text-purple-600" :
+				result.status === "redirect" ? "text-blue-600" :
 				"text-orange-600"
 			}>
 				{result.status === "broken" && `${result.statusCode || "Error"}`}
 				{result.status === "timeout" && "Timeout"}
 				{result.status === "error" && "Error"}
+				{result.status === "warning" && "Warning"}
 				{result.status === "insecure" && "Insecure"}
-				{result.status === "unverifiable" && "Unverifiable"}
+				{result.status === "redirect" && "Redirect"}
 			</span>
 		</div>
 		{result.text && (
@@ -102,6 +82,14 @@ const IssueItem = ({ result }: { result: LinkCheckResult }) => (
 				{result.url}
 			</a>
 		</div>
+		{result.finalUrl && result.status === "redirect" && (
+			<div className="text-gray-600 break-all mt-1">
+				<span className="font-medium">Final URL:</span>{" "}
+				<a href={result.finalUrl} target="_blank" rel="noopener noreferrer" className="text-sfgov-blue hover:underline">
+					{result.finalUrl}
+				</a>
+			</div>
+		)}
 		{result.error && (
 			<div className="text-gray-500 text-xs mt-1">{result.error}</div>
 		)}
@@ -110,15 +98,16 @@ const IssueItem = ({ result }: { result: LinkCheckResult }) => (
 
 const Results = ({ results, totalChecked }: { results: LinkCheckResult[]; totalChecked: number }) => {
 	const brokenLinks = results.filter(r => r.status === "broken" || r.status === "timeout" || r.status === "error");
+	const warningLinks = results.filter(r => r.status === "warning");
 	const insecureLinks = results.filter(r => r.status === "insecure");
-	const unverifiableLinks = results.filter(r => r.status === "unverifiable");
-	const issueCount = brokenLinks.length + insecureLinks.length + unverifiableLinks.length;
+	const redirectLinks = results.filter(r => r.status === "redirect");
+	const issueCount = brokenLinks.length + warningLinks.length + insecureLinks.length;
 
 	return (
 		<div className="mt-4 space-y-3">
 			<div className="text-sm text-gray-500 font-medium">
 				Checked {totalChecked} link{totalChecked === 1 ? "" : "s"}, found {issueCount} issue{issueCount === 1 ? "" : "s"}:
-			</div>
+				</div>
 			{brokenLinks.length > 0 && (
 				<div className="space-y-2 pr-1">
 					{brokenLinks.map((result, index) => (
@@ -126,26 +115,37 @@ const Results = ({ results, totalChecked }: { results: LinkCheckResult[]; totalC
 					))}
 				</div>
 			)}
+			{warningLinks.length > 0 && (
+				<div className="space-y-2 mt-4 pr-1">
+					{warningLinks.map((result, index) => (
+						<IssueItem key={`warning-${index}`} result={result} />
+					))}
+				</div>
+			)}
 			{insecureLinks.length > 0 && (
 				<>
+{/*
 					<div className="text-sm text-amber-600 font-medium mt-3">
 						{insecureLinks.length} insecure (HTTP) link{insecureLinks.length === 1 ? "" : "s"}
 					</div>
-					<div className="space-y-2 pr-1">
+*/}
+					<div className="space-y-2 mt-4 pr-1">
 						{insecureLinks.map((result, index) => (
 							<IssueItem key={`insecure-${index}`} result={result} />
 						))}
 					</div>
 				</>
 			)}
-			{unverifiableLinks.length > 0 && (
+			{redirectLinks.length > 0 && (
 				<>
-					<div className="text-sm text-purple-600 font-medium mt-3">
-						{unverifiableLinks.length} unverifiable link{unverifiableLinks.length === 1 ? "" : "s"} (check manually)
+{/*
+					<div className="text-sm text-blue-600 font-medium mt-3">
+						{redirectLinks.length} redirect{redirectLinks.length === 1 ? "" : "s"} (informational)
 					</div>
-					<div className="space-y-2 pr-1">
-						{unverifiableLinks.map((result, index) => (
-							<IssueItem key={`unverifiable-${index}`} result={result} />
+*/}
+					<div className="space-y-2 mt-4 pr-1">
+						{redirectLinks.map((result, index) => (
+							<IssueItem key={`redirect-${index}`} result={result} />
 						))}
 					</div>
 				</>
@@ -165,6 +165,7 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 	const [error, setError] = useState<string | null>(null);
 	const [hasRun, setHasRun] = useState(false);
 	const [progress, setProgress] = useState({ checked: 0, total: 0 });
+	const [linkCheckClient] = useState(() => new LinkCheckClient());
 
 	// restore cached results when pageUrl changes
 	useEffect(() => {
@@ -179,7 +180,15 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 		setError(null);
 	}, [pageUrl]);
 
+	// cleanup on unmount
+	useEffect(() => {
+		return () => {
+			linkCheckClient.abort();
+		};
+	}, [linkCheckClient]);
+
 	const handleRunCheck = async () => {
+		console.log("LinkCheckerCard: handleRunCheck called");
 		setIsLoading(true);
 		setError(null);
 		setResults([]);
@@ -209,33 +218,55 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 				return;
 			}
 
+			// create a map of URL to link text for later reference
+			const linkTextMap = new Map<string, string>();
+			links.forEach(link => {
+				linkTextMap.set(link.url, link.text);
+			});
+
 			setProgress({ checked: 0, total: links.length });
 
-			// check each link
-			const checkResults: LinkCheckResult[] = [];
-			for (let i = 0; i < links.length; i++) {
-				const link = links[i];
-				const result = await checkLinkViaPageContext(tab.id, link.url);
-				result.text = link.text;
-				checkResults.push(result);
-				setProgress({ checked: i + 1, total: links.length });
-				setResults([...checkResults]);
-			}
-
-			setCachedResults(pageUrl, checkResults);
-			setHasRun(true);
+			// start server-side link check with streaming results
+			console.log("LinkCheckerCard: Starting link check with", links.length, "links");
+			await linkCheckClient.startCheck({
+				urls: links.map(l => l.url),
+				pageUrl,
+				onResult: (result) => {
+					// add link text to result
+					const linkResult: LinkCheckResult = {
+						...result,
+						text: linkTextMap.get(result.url) || "",
+					};
+					
+					// update results incrementally
+					setResults(prev => [...prev, linkResult]);
+					setProgress(prev => ({ ...prev, checked: prev.checked + 1 }));
+				},
+				onComplete: () => {
+					setHasRun(true);
+					setIsLoading(false);
+					// cache results after completion
+					setResults(currentResults => {
+						setCachedResults(pageUrl, currentResults);
+						return currentResults;
+					});
+				},
+				onError: (errorMessage) => {
+					setError(errorMessage);
+					setIsLoading(false);
+				},
+			});
 		} catch (err) {
 			console.error("Link check failed:", err);
 			setError(err instanceof Error ? err.message : "Unknown error occurred");
-		} finally {
 			setIsLoading(false);
 		}
 	};
 
 	const brokenCount = results.filter(r => r.status === "broken" || r.status === "timeout" || r.status === "error").length;
+	const warningCount = results.filter(r => r.status === "warning").length;
 	const insecureCount = results.filter(r => r.status === "insecure").length;
-	const unverifiableCount = results.filter(r => r.status === "unverifiable").length;
-	const issueCount = brokenCount + insecureCount + unverifiableCount;
+	const issueCount = brokenCount + warningCount + insecureCount;
 
 	return (
 		<Card title="Broken Link Finder">
@@ -244,13 +275,17 @@ export function LinkCheckerCard({ pageUrl }: LinkCheckerCardProps)
 				disabled={isLoading}
 				className="self-start"
 			>
-				{isLoading ? <RunningLabel checked={progress.checked} total={progress.total} /> : "Run Check"}
+				{isLoading ? <><SpinnerIcon /> Checking...</> : "Run Check"}
 			</Button>
 
 			{error && (
 				<div className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded border border-red-100">
 					{error}
 				</div>
+			)}
+
+			{isLoading && progress.total > 0 && (
+				<ProgressBar checked={progress.checked} total={progress.total} />
 			)}
 
 			{hasRun && results.length === 0 && !error && (

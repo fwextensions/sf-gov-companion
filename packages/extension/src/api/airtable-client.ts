@@ -144,6 +144,7 @@ export async function getFeedback(path: string): Promise<FeedbackResponse> {
 
 	// check cache first
 	const cached = feedbackCache.get(cacheKey);
+	console.log("getFeedback:", { path, normalizedPath, cacheKey, hasCached: !!cached, cacheAge: cached ? Date.now() - cached.timestamp : null, cacheTTL: CACHE_TTL });
 	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
 		console.log("Returning cached feedback for:", normalizedPath);
 		return cached.data;
@@ -159,6 +160,7 @@ export async function getFeedback(path: string): Promise<FeedbackResponse> {
 	url.searchParams.set("pagePath", normalizedPath);
 
 	console.log("Fetching feedback from:", url.toString());
+	const fetchStart = Date.now();
 
 	try {
 		const response = await fetchWithTimeout(
@@ -187,6 +189,7 @@ export async function getFeedback(path: string): Promise<FeedbackResponse> {
 			throw createApiError("network", `HTTP error ${response.status}`, response.status);
 		}
 
+		console.log(`Feedback fetch completed in ${Date.now() - fetchStart}ms, status: ${response.status}`);
 		const data: FeedbackResponse = await response.json();
 
 		// cache the results

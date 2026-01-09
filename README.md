@@ -30,8 +30,10 @@ sf-gov-companion/
 │   │
 │   ├── server/             # Vercel API workspace
 │   │   ├── api/            # Serverless functions
-│   │   │   └── airtable-proxy.ts # Airtable proxy endpoint
-│   │   ├── lib/            # Utility functions
+│   │   │   ├── feedback.ts # User feedback proxy endpoint
+│   │   │   └── link-check.ts # Server-side link checking (SSE)
+│   │   ├── lib/            # Shared utilities (auth, logging)
+│   │   ├── dev-server.ts   # Lightweight local dev server
 │   │   ├── package.json    # API dependencies
 │   │   ├── tsconfig.json   # TypeScript configuration
 │   │   └── vercel.json     # Vercel configuration
@@ -69,13 +71,16 @@ This will install dependencies for all workspaces and link them together.
 
 ### Development Mode
 
-For local development with the API proxy, you need to run both the extension and server:
+For local development, you need to run both the extension and server:
 
 1. **Start the API server** (in one terminal):
    ```bash
-   npm run dev:server
+   cd packages/server
+   npm run dev
    ```
-   This starts the Vercel dev server on `http://localhost:3001`
+   This starts a lightweight Node dev server on `http://localhost:3000`.
+   
+   > **Note:** There's also `npm run dev:vercel` which uses `vercel dev`, but it has significant performance issues on Windows (5+ second response delays due to a libuv bug). The Node dev server is recommended for local development.
 
 2. **Configure the extension** to use the local API:
    ```bash
@@ -84,7 +89,7 @@ For local development with the API proxy, you need to run both the extension and
    ```
    The `.env.local` file should contain:
    ```
-   VITE_API_PROXY_URL=http://localhost:3001/api/airtable-proxy
+   VITE_API_BASE_URL=http://localhost:3000
    ```
 
 3. **Start the extension dev server** (in another terminal):
@@ -100,18 +105,16 @@ For local development with the API proxy, you need to run both the extension and
 
 The extension will now use your local API server instead of the production Vercel deployment.
 
-**Quick start (all servers):**
-```bash
-npm run dev
-```
-
 **Individual workspace dev servers:**
 ```bash
-# Extension only (Vite dev server)
+# Extension only (Vite dev server with HMR)
 npm run dev:extension
 
-# API only (Vercel dev server on port 3001)
-npm run dev:server
+# API server (lightweight Node server on port 3000)
+cd packages/server && npm run dev
+
+# API via Vercel dev (slower on Windows)
+cd packages/server && npm run dev:vercel
 ```
 
 ### Build
@@ -208,16 +211,21 @@ The browser extension built with React, Vite, and CRXJS. Contains the side panel
 
 ### API Workspace (`@sf-gov/server`)
 
-Vercel serverless functions for the Airtable proxy endpoint. Handles authentication and rate limiting.
+Vercel serverless functions for the feedback proxy and link checking endpoints. Handles Wagtail session authentication and Redis caching.
 
 **Key Scripts:**
-- `npm run dev:server` - Start Vercel dev server
-- `npm run build:server` - Build for Vercel deployment
+- `npm run dev` - Start lightweight Node dev server (recommended)
+- `npm run dev:vercel` - Start Vercel dev server (slower on Windows)
 - `npm run deploy` - Deploy to Vercel production
+
+**API Endpoints:**
+- `/api/feedback` - Proxies user feedback data from Airtable
+- `/api/link-check` - Server-side link validation with SSE streaming
 
 **Dependencies:**
 - `@vercel/node` for serverless function runtime
-- `@upstash/redis` for session caching and rate limiting
+- `@upstash/redis` for session caching
+- `tsx` for local TypeScript execution
 - `@sf-gov/shared` for shared types
 
 ### Shared Workspace (`@sf-gov/shared`)

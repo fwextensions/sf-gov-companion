@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { AirtableResponse, FeedbackRecord, FeedbackResponse, FeedbackStats } from "@sf-gov/shared";
+import { validateWagtailSession } from "../lib/auth.js";
 
 // cache TTL for feedback data (2 hours in seconds)
 const FEEDBACK_CACHE_TTL = 7200;
 const SESSION_CACHE_TTL = 300;
-const WAGTAIL_VALIDATION_TIMEOUT = parseInt(process.env.WAGTAIL_VALIDATION_TIMEOUT || "5000", 10);
 
 interface ProxyEnv {
 	WAGTAIL_API_URL: string;
@@ -97,39 +97,6 @@ function validateOrigin(origin: string | undefined): boolean {
 		return true;
 	}
 	return false;
-}
-
-async function validateWagtailSession(sessionId: string, wagtailApiUrl: string): Promise<boolean> {
-	let timeoutId: NodeJS.Timeout;
-	try {
-		const baseUrl = wagtailApiUrl.replace(/\/$/, "");
-		const validationUrl = `${baseUrl}/pages`;
-
-		const fetchPromise = fetch(validationUrl, {
-			method: "GET",
-			headers: {
-				"Cookie": `sessionid=${sessionId}`,
-				"User-Agent": "SF-Gov-Companion-Extension/1.0",
-				"X-SF-Gov-Extension": "companion",
-			},
-			redirect: "manual",
-		});
-
-		const timeoutPromise = new Promise<Response>((_, reject) => {
-			timeoutId = setTimeout(() => reject(new Error("Request timed out")), WAGTAIL_VALIDATION_TIMEOUT);
-		});
-
-		const response = await Promise.race([fetchPromise, timeoutPromise]);
-		clearTimeout(timeoutId!);
-
-		return response.ok || (response.status >= 300 && response.status < 400);
-	} catch (error) {
-		console.error("Wagtail session validation failed:", error);
-		return false;
-	} finally {
-		// @ts-ignore
-		if (typeof timeoutId !== "undefined") clearTimeout(timeoutId);
-	}
 }
 
 function normalizePath(path: string): string {
