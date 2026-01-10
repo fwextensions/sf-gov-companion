@@ -4,7 +4,7 @@ interface EditIconProps {
 	className?: string;
 }
 
-export const EditIcon: React.FC<EditIconProps> = ({ className = "" }) => (
+export const EditIcon: React.FC<EditIconProps> = ({ className = "w-4 h-4" }) => (
 	<svg
 		className={className}
 		fill="none"

@@ -1,6 +1,7 @@
 import React from "react";
 import { Card } from "./Card";
 import type { Agency, FormSchema } from "@sf-gov/shared";
+import { EditIcon } from "@/sidepanel/components/EditIcon.tsx";
 
 interface MetadataCardProps {
 	primaryAgency: Agency | undefined;
@@ -9,13 +10,21 @@ interface MetadataCardProps {
 	schema?: FormSchema;
 }
 
+const CreateNewLink = ({ contentType }: { contentType: string }) => (
+	<a
+		href={`https://api.sf.gov/admin/pages/add/sf/${contentType}/2`}
+		className="ml-4 inline-flex items-center gap-1 align-bottom"
+		title="Create a new page of this type"
+		target="_blank"
+	>
+		<EditIcon /> Create New
+	</a>
+);
+
 function formatContentType(contentType: string): string
 {
-	// Extract the last part after the dot (e.g., "ServicePage" from "services.ServicePage")
-	const typeName = contentType.split(".").pop() || contentType;
-
 	// Add spaces before capital letters and capitalize first letter
-	return typeName
+	return contentType
 		.replace(/([A-Z])/g, " $1")
 		.trim()
 		.replace(/^./, (str) => str.toUpperCase());
@@ -31,6 +40,9 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 	const formEditUrl = schema
 		? `https://formio.dev.sf.gov/#/project/${schema.project}/form/${schema._id}/edit`
 		: null;
+	// Extract the last part after the dot (e.g., "ResourceCollection" from "sf.ResourceCollection")
+	const contentTypeName = contentType.split(".").pop() || contentType;
+	const contentTypeParam = contentTypeName.toLowerCase();
 
 	return (
 		<Card
@@ -39,8 +51,10 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 		>
 			<div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3">
 				<div className="text-sm text-gray-600">Content Type:</div>
-				<div className="text-sm font-medium text-gray-900">{formatContentType(
-					contentType)}</div>
+				<div className="text-sm font-medium text-gray-900">
+					{formatContentType(contentTypeName)}
+					<CreateNewLink contentType={contentTypeParam} />
+				</div>
 
 				<div className="text-sm text-gray-600">Primary Agency:</div>
 				<div className="text-sm font-medium text-gray-900">

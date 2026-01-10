@@ -10,6 +10,9 @@ import { version } from './package.json'
 export default defineConfig(({ mode }) => ({
 	define: {
 		__DEV__: mode === 'development',
+		'import.meta.env.VITE_API_BASE_URL': mode === 'development' 
+			? JSON.stringify(process.env.VITE_API_BASE_URL)
+			: 'undefined',
 	},
 	resolve: {
 		alias: {
